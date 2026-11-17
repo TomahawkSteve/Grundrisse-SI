@@ -1,0 +1,896 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#1e4d78"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>Schröder Grundriss-Studio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;700;800&display=swap">
+<style>
+/* Layout: sticky stepper header, one working column; editor = canvas stage + tool panel (stacked on phones) */
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --ink:#16202b; --muted:#5b6775; --line:#d8dee6;
+  --accent:#1e4d78; --accent-ink:#ffffff; --accent-soft:#e2ebf4; --stage:#e3e8ee;
+  --danger:#b3261e; --ok:#2e7d4f;
+  --f-display:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-text:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f141a; --surface:#171e27; --ink:#e7ecf2; --muted:#9aa6b4; --line:#2a3542;
+  --accent:#7fb0e0; --accent-ink:#0b1622; --accent-soft:#1d2b3a; --stage:#0b1015;
+  --danger:#f2867d; --ok:#7cc79a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141a; --surface:#171e27; --ink:#e7ecf2; --muted:#9aa6b4; --line:#2a3542;
+  --accent:#7fb0e0; --accent-ink:#0b1622; --accent-soft:#1d2b3a; --stage:#0b1015;
+  --danger:#f2867d; --ok:#7cc79a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-text);font-size:15px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.35rem;font-weight:800}
+h3{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px}
+.top-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;min-width:0}
+.brand canvas{height:34px;width:auto}
+.brand b{font-family:var(--f-display);font-weight:800;font-size:1rem;white-space:nowrap}
+.brand span{color:var(--muted);font-size:.8rem;display:block}
+.steps{display:flex;gap:4px;overflow-x:auto}
+.steps button{border:0;background:transparent;padding:8px 10px;border-radius:8px;cursor:pointer;color:var(--muted);font-weight:600;font-size:.86rem;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.steps button i{font-style:normal;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1.5px solid currentColor;font-size:.72rem}
+.steps button[aria-current="step"]{color:var(--accent);background:var(--accent-soft)}
+.steps button[aria-current="step"] i{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+main{max-width:1180px;margin:0 auto;padding-block:20px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.step{display:grid;gap:18px}
+.lead{color:var(--muted);max-width:62ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:14px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.field{display:grid;gap:5px;min-width:0}
+.field label,.lbl{font-weight:600;font-size:.86rem}
+.field small{color:var(--muted);font-size:.8rem}
+input[type=text],input[type=email],input[type=number],select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);min-height:44px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;padding:3px;background:var(--bg);gap:3px;flex-wrap:wrap}
+.seg label{position:relative}
+.seg input{position:absolute;opacity:0;inset:0}
+.seg span{display:block;padding:8px 16px;border-radius:7px;cursor:pointer;font-weight:600;font-size:.9rem}
+.seg input:checked+span{background:var(--surface);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg input:focus-visible+span{outline:2px solid var(--accent)}
+.designs{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.design{position:relative;border:1.5px solid var(--line);border-radius:var(--r);padding:12px;cursor:pointer;display:grid;gap:10px;background:var(--surface)}
+.design input{position:absolute;opacity:0}
+.design:has(input:checked){border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.design:has(input:focus-visible){outline:2px solid var(--accent)}
+.design canvas{width:100%;height:auto;border-radius:6px;display:block}
+.design b{font-family:var(--f-display)}
+.design small{color:var(--muted);display:block}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:10px 16px;min-height:44px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.big{padding:14px 22px;font-size:1rem}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--danger)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn svg{width:18px;height:18px;flex:none}
+.hint{font-size:.85rem;color:var(--muted)}
+.logo-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo-prev{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 12px;height:64px;display:flex;align-items:center}
+.logo-prev canvas{height:44px;width:auto}
+
+.photo-pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.pick{border:1.5px dashed var(--line);border-radius:var(--r);padding:22px;display:grid;place-items:center;gap:6px;text-align:center;cursor:pointer;background:var(--surface);font-weight:600}
+.pick:hover{border-color:var(--accent)}
+.pick svg{width:34px;height:34px;color:var(--accent)}
+.pick input{position:absolute;width:1px;height:1px;opacity:0}
+.cropwrap{position:relative;background:var(--stage);border-radius:var(--r);overflow:hidden;touch-action:none}
+#crop{display:block;width:100%;touch-action:none}
+#cleanprev{display:block;width:100%;height:auto;background:#fff;border-radius:6px;border:1px solid var(--line)}
+
+.editor{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:860px){.editor{grid-template-columns:minmax(0,1fr)}}
+.stage{position:relative;background:var(--stage);border-radius:var(--r);overflow:hidden;height:min(72vh,720px);min-height:340px;position:sticky;top:76px}
+@media (max-width:860px){.stage{height:58vh;top:64px;position:relative}}
+#ed{display:block;width:100%;height:100%;touch-action:none;cursor:default}
+.badge{position:absolute;left:10px;top:10px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:600;color:var(--muted)}
+.zoom{position:absolute;right:10px;bottom:10px;display:flex;gap:6px}
+.zoom button{width:40px;height:40px;border-radius:9px;border:1px solid var(--line);background:var(--surface);font-size:1.1rem;font-weight:700;cursor:pointer}
+.zoom button.w{width:auto;padding:0 10px;font-size:.8rem}
+.panel{display:grid;gap:12px;min-width:0}
+.tools{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:4px}
+.tools button{border:0;background:transparent;border-radius:7px;padding:8px 2px;cursor:pointer;display:grid;justify-items:center;gap:3px;font-size:.72rem;font-weight:600;color:var(--muted);min-height:52px}
+.tools button svg{width:20px;height:20px}
+.tools button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:6px 12px;font-size:.84rem;font-weight:500;cursor:pointer;min-height:34px}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.furn{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px}
+.furn button{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 4px;cursor:pointer;display:grid;justify-items:center;gap:2px;font-size:.72rem;font-weight:500;line-height:1.2}
+.furn button:hover{border-color:var(--accent)}
+.furn canvas{width:60px;height:44px}
+.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.mini-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.check{display:flex;gap:10px;align-items:center;font-weight:500;cursor:pointer;min-height:36px}
+.check input{width:20px;height:20px;accent-color:var(--accent)}
+.status{font-size:.85rem;color:var(--muted)}
+.status.err{color:var(--danger)}
+
+.export{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:860px){.export{grid-template-columns:minmax(0,1fr)}}
+.sheet{background:var(--stage);border-radius:var(--r);padding:16px;display:grid;place-items:center;min-height:300px}
+.sheet img{max-width:100%;max-height:78vh;box-shadow:0 6px 24px rgba(0,0,0,.18);background:#fff}
+.mailbox{display:grid;gap:10px;background:var(--accent-soft);border-radius:var(--r);padding:14px}
+.mailbox code{font-family:var(--f-text);font-weight:600;user-select:all;word-break:break-all}
+
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:9px;font-weight:600;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20;max-width:calc(100% - 32px)}
+#toast.on{opacity:1}
+.busy{position:fixed;inset:0;background:rgba(10,15,20,.35);display:grid;place-items:center;z-index:30}
+.busy div{background:var(--surface);padding:16px 22px;border-radius:12px;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><canvas id="brandlogo" width="200" height="68" aria-hidden="true"></canvas><div><b>Grundriss-Studio</b><span>Schröder Immobilien</span></div></div>
+    <nav class="steps" aria-label="Arbeitsschritte">
+      <button data-go="1" aria-current="step"><i>1</i>Objekt</button>
+      <button data-go="2"><i>2</i>Foto</button>
+      <button data-go="3"><i>3</i>Beschriften</button>
+      <button data-go="4"><i>4</i>Export</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+<!-- STEP 1 -->
+<section class="step" id="s1">
+  <div><h2>Objektdaten</h2><p class="lead">Diese Angaben stehen später im Kopf und Fuß des Grundrisses. Sie bleiben auf diesem Gerät gespeichert, bis du sie änderst.</p></div>
+  <div class="card">
+    <div class="grid2">
+      <div class="field"><label for="f-objnr">Objekt-Nummer</label><input type="text" id="f-objnr" placeholder="z. B. 2026-118" autocomplete="off"></div>
+      <div class="field"><label for="f-addr">Anschrift</label><input type="text" id="f-addr" placeholder="z. B. Lindenstraße 12, 21423 Winsen (Luhe)"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label for="f-floor">Etage</label><select id="f-floor"></select>
+        <input type="text" id="f-floor-other" placeholder="Bezeichnung, z. B. Spitzboden" hidden></div>
+      <div class="field"><span class="lbl" id="furn-lbl">Möbliert</span>
+        <div class="seg" role="radiogroup" aria-labelledby="furn-lbl">
+          <label><input type="radio" name="furn" id="f-furn-no" value="no" checked><span>Nein</span></label>
+          <label><input type="radio" name="furn" id="f-furn-yes" value="yes"><span>Ja</span></label>
+        </div>
+        <small>Bei „Ja“ setzt du die Möbel in Schritt 3 selbst und passt sie an.</small></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Designvorlage</h3>
+    <div class="designs" id="designs"></div>
+  </div>
+  <div class="card">
+    <div class="grid2">
+      <div class="field"><label for="f-email">E-Mail-Empfänger</label><input type="email" id="f-email" placeholder="name@schroeder-immobilien.de" autocomplete="email"><small>An diese Adresse geht der Grundriss in Schritt 4.</small></div>
+      <div class="field"><span class="lbl">Logo</span>
+        <div class="logo-row"><div class="logo-prev"><canvas id="logoprev" width="300" height="88"></canvas></div>
+          <label class="btn" for="f-logo">Logo-Datei wählen</label><input type="file" id="f-logo" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden>
+          <button class="btn ghost" id="logo-reset" hidden>Zurücksetzen</button></div>
+        <small id="logo-note">Platzhalter-Schriftzug. Lade das echte Logo (PNG mit transparentem Hintergrund) einmal hoch.</small></div>
+    </div>
+  </div>
+  <div class="row"><button class="btn primary big" data-go="2">Weiter: Grundriss fotografieren</button></div>
+</section>
+
+<!-- STEP 2 -->
+<section class="step" id="s2" hidden>
+  <div><h2>Grundriss fotografieren</h2><p class="lead">Fotografiere den Plan möglichst gerade von oben, ohne Schatten. Danach ziehst du die vier Ecken auf die Papierkanten, die App richtet das Bild aus und macht die Linien sauber.</p></div>
+  <div class="photo-pick" id="pick">
+    <label class="pick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto aufnehmen<input type="file" accept="image/*" capture="environment" id="f-cam"></label>
+    <label class="pick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>Bild aus Galerie / Datei<input type="file" accept="image/*" id="f-file"></label>
+    <button class="pick" id="use-example" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18"/><path d="M3 11h9V3M12 11v10M12 15h9"/></svg>Beispielgrundriss nutzen</button>
+  </div>
+  <div class="card" id="crop-card" hidden>
+    <div class="row" style="justify-content:space-between"><h3>1 · Ecken auf das Papier ziehen</h3>
+      <div class="row"><button class="btn" id="rot">Drehen ↻</button><button class="btn" id="corners-full">Ganzes Bild</button></div></div>
+    <div class="cropwrap"><canvas id="crop"></canvas></div>
+    <div class="row"><button class="btn primary" id="do-warp">Ausrichten &amp; bereinigen</button></div>
+  </div>
+  <div class="card" id="clean-card" hidden>
+    <h3>2 · Linien bereinigen</h3>
+    <canvas id="cleanprev"></canvas>
+    <div class="grid2">
+      <div class="field"><label for="f-sens">Linien-Empfindlichkeit</label><input type="range" id="f-sens" min="4" max="40" value="14"><small>Mehr = auch schwache Linien werden übernommen.</small></div>
+      <div class="field"><label for="f-clean">Flecken &amp; kleine Schrift entfernen</label><input type="range" id="f-clean" min="0" max="4" value="2"><small>Höher entfernt alte Beschriftungen, aber evtl. auch feine Linien.</small></div>
+    </div>
+    <div class="row"><button class="btn primary big" id="commit-plan">Weiter: Beschriften</button></div>
+  </div>
+</section>
+
+<!-- STEP 3 -->
+<section class="step" id="s3" hidden>
+  <div class="editor">
+    <div class="stage" id="stage">
+      <canvas id="ed" aria-label="Grundriss-Editor"></canvas>
+      <div class="badge" id="ex-badge">Beispielgrundriss</div>
+      <div class="zoom"><button id="z-out" aria-label="Verkleinern">−</button><button id="z-in" aria-label="Vergrößern">+</button><button class="w" id="z-fit">Einpassen</button></div>
+    </div>
+    <aside class="panel">
+      <div class="tools" role="toolbar" aria-label="Werkzeuge">
+        <button data-tool="move" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>Bewegen</button>
+        <button data-tool="erase" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m4 15 9-9 7 7-6 6H8z"/><path d="M9 10l7 7M8 19h12"/></svg>Radierer</button>
+        <button data-tool="wall" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 20 20 4"/></svg>Wand</button>
+        <button data-tool="scale" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9h18v6H3zM7 9v3M11 9v3M15 9v3M19 9v3"/></svg>Maßstab</button>
+        <button id="undo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Zurück</button>
+      </div>
+      <div class="card" id="tool-opts" hidden></div>
+      <div class="card sel" id="sel-panel" hidden></div>
+      <div class="card">
+        <h3>Raum beschriften</h3>
+        <div class="chips" id="room-chips"></div>
+        <p class="hint">Antippen, dann das Etikett in den Raum ziehen. Sobald ein Raum geschlossen ist, wird sein Boden eingefärbt.</p>
+        <div id="ai-box" hidden><button class="btn" id="ai-btn">✦ Räume automatisch erkennen</button><p class="status" id="ai-status"></p></div>
+      </div>
+      <div class="card" id="furn-card">
+        <h3>Möbel</h3>
+        <div id="furn-off" class="hint">Objekt ist als <b>unmöbliert</b> angelegt. <button class="btn ghost" id="furn-enable" style="min-height:36px;padding:4px 10px">Doch möblieren</button></div>
+        <div class="furn" id="furn-grid"></div>
+      </div>
+      <div class="card">
+        <h3>Darstellung</h3>
+        <div class="seg" id="design-seg" role="radiogroup" aria-label="Designvorlage"></div>
+        <label class="check"><input type="checkbox" id="f-fill" checked>Böden einfärben</label>
+        <div class="field"><label for="f-fs">Schriftgröße Räume</label><input type="range" id="f-fs" min="60" max="180" value="100"></div>
+        <label class="check"><input type="checkbox" id="f-north">Nordpfeil anzeigen</label>
+        <div class="field" id="north-rot-f" hidden><label for="f-north-rot">Richtung Norden</label><input type="range" id="f-north-rot" min="0" max="359" value="0"></div>
+        <p class="status" id="scale-status"></p>
+      </div>
+      <button class="btn primary big" data-go="4">Weiter: Export</button>
+    </aside>
+  </div>
+</section>
+
+<!-- STEP 4 -->
+<section class="step" id="s4" hidden>
+  <div class="export">
+    <div class="sheet"><img id="sheet" alt="Vorschau des fertigen Grundrisses"></div>
+    <aside class="panel">
+      <div class="card">
+        <h3>Fertig</h3>
+        <p id="exp-title" style="font-weight:600"></p>
+        <div class="field"><label for="f-email2">E-Mail-Empfänger</label><input type="email" id="f-email2" placeholder="name@schroeder-immobilien.de"></div>
+        <button class="btn primary big" id="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Per E-Mail senden</button>
+        <div class="mailbox" id="mailbox" hidden></div>
+        <div class="row"><button class="btn" id="dl-pdf">PDF speichern</button><button class="btn" id="dl-jpg">JPG speichern</button></div>
+        <p class="status" id="exp-status"></p>
+      </div>
+      <div class="card">
+        <h3>Weiter mit</h3>
+        <button class="btn" id="next-floor">Nächste Etage dieses Objekts</button>
+        <button class="btn ghost" id="new-obj">Neues Objekt anlegen</button>
+      </div>
+    </aside>
+  </div>
+</section>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+"use strict";
+/* ================= Basics ================= */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const store={get(k,d){try{const v=localStorage.getItem("gs_"+k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+  set(k,v){try{localStorage.setItem("gs_"+k,JSON.stringify(v))}catch(e){}}};
+let toastT;function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("on"),2600)}
+function busy(msg){const d=document.createElement("div");d.className="busy";d.innerHTML="<div></div>";d.firstChild.textContent=msg;document.body.appendChild(d);return()=>d.remove()}
+const tick=()=>new Promise(r=>setTimeout(r,30));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const hex=h=>{h=h.replace("#","");return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]};
+const fontsReady=(document.fonts?Promise.all([document.fonts.load("600 40px Inter"),document.fonts.load("400 40px Inter"),document.fonts.load("800 40px Manrope"),document.fonts.load("700 40px Manrope"),document.fonts.load("500 40px Manrope")]).catch(()=>{}):Promise.resolve());
+const cap=n=>(window.claude&&window.claude.use)?window.claude.use(n).catch(()=>null):Promise.resolve(null);
+const downloadsP=cap("downloads"), sampleP=cap("sample");
+
+/* ================= Data ================= */
+const FLOORS=[["Keller","Kellergeschoss","KG"],["Erdgeschoss","Erdgeschoss","EG"]];
+for(let i=1;i<=10;i++)FLOORS.push([i+". OG",i+". Obergeschoss",i+"OG"]);
+FLOORS.push(["Dachgeschoss","Dachgeschoss","DG"],["Nebengebäude","Nebengebäude","Nebengebaeude"],["Sonstiges","","Sonstiges"]);
+
+const DESIGNS={
+  klassik:{name:"Klassik",sub:"Schwarz-Weiß, zeitlos",page:"#ffffff",paper:"#ffffff",wall:"#111111",floor:null,wet:null,out:null,plain:null,
+    furnS:"#1a1a1a",furnF:"#ffffff",rug:"rgba(0,0,0,0.04)",label:"#111111",area:"#444444",text:"#111111",muted:"#555555",accent:"#111111",halo:"#ffffff",texture:false},
+  eiche:{name:"Eiche",sub:"Holzboden & Anthrazit",page:"#fbf9f5",paper:"#fbf9f5",wall:"#2d2f33",floor:"#e8d5b3",wet:"#dfe4e6",out:"#e4e1d7",plain:"#ece8e1",
+    furnS:"#5a4f45",furnF:"#fbf7f0",rug:"rgba(120,100,80,0.10)",label:"#2d2f33",area:"#5f5a52",text:"#2d2f33",muted:"#77706a",accent:"#a07c4a",halo:null,texture:true},
+  marine:{name:"Marine",sub:"Klares Blau, modern",page:"#ffffff",paper:"#ffffff",wall:"#1d3557",floor:"#e4eef7",wet:"#d3e7ea",out:"#eaf1e6",plain:"#eef1f5",
+    furnS:"#3b5a80",furnF:"#ffffff",rug:"rgba(29,53,87,0.06)",label:"#1d3557",area:"#4a6283",text:"#1d3557",muted:"#5f7590",accent:"#2f6fa3",halo:null,texture:false}
+};
+const ROOMS=["Wohnen","Essen","Wohnen/Essen","Küche","Schlafen","Kind","Arbeiten","Gäste","Bad","Duschbad","WC","Flur","Diele","Abstellraum","HWR","Ankleide","Balkon","Terrasse","Loggia","Keller","Heizung","Hobby","Garage"];
+const FURN={
+  bett2:["Doppelbett",180,200],bett1:["Einzelbett",90,200],sofa:["Sofa",220,95],ecksofa:["Ecksofa",260,200],sessel:["Sessel",85,85],
+  couchtisch:["Couchtisch",110,60],esstisch:["Esstisch 4 P.",140,180],rundtisch:["Runder Tisch",150,150],schrank:["Kleiderschrank",200,60],
+  kommode:["Kommode",120,45],schreibtisch:["Schreibtisch",140,120],tv:["TV-Board",180,40],kueche:["Küchenzeile",280,60],kuehl:["Kühlschrank",60,65],
+  wanne:["Badewanne",170,75],dusche:["Dusche",90,90],wc:["WC",40,65],becken:["Waschbecken",60,45],waschm:["Waschmaschine",60,60],
+  pflanze:["Pflanze",50,50],teppich:["Teppich",200,140]
+};
+
+const S={meta:Object.assign({objnr:"",addr:"",floor:1,floorOther:"",furnished:false,design:"eiche",email:""},store.get("meta",{})),
+  plan:null,gray:null,pxPerM:null,items:[],isExample:true,fill:true,labelScale:1,north:false,northRot:0,
+  regions:null,regionKind:[],regionSize:[],planCanvas:document.createElement("canvas"),version:0,logo:null};
+let uid=1;const nid=()=>uid++;
+const D=()=>DESIGNS[S.meta.design]||DESIGNS.klassik;
+const saveMeta=()=>store.set("meta",S.meta);
+const ppm=()=>S.pxPerM||(S.plan?Math.max(S.plan.w,S.plan.h)/14:100);
+const planMax=()=>S.plan?Math.max(S.plan.w,S.plan.h):1000;
+const dirty=()=>{S.version++};
+function floorName(){const f=FLOORS[S.meta.floor]||FLOORS[1];return f[2]==="Sonstiges"?(S.meta.floorOther||"Grundriss"):f[1]}
+function floorShort(){const f=FLOORS[S.meta.floor]||FLOORS[1];return f[2]==="Sonstiges"?(S.meta.floorOther||"Sonstiges"):f[2]}
+const fmtArea=a=>a.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})+" m²";
+const parseNum=s=>{if(s==null)return null;s=String(s).trim().replace(/\s|m²|qm/gi,"").replace(",",".");const n=parseFloat(s);return isFinite(n)&&n>0?n:null};
+function roomKind(n){n=(n||"").toLowerCase();
+  if(/bad|wc|dusch|sauna|küche|kueche|kochen|hwr|hauswirt|wasch/.test(n))return"wet";
+  if(/balkon|terrasse|loggia|garten|freisitz/.test(n))return"out";
+  if(/keller|abstell|heiz|technik|garage|lager|hobby|speicher|boden/.test(n))return"plain";
+  return"floor"}
+
+/* ================= Logo ================= */
+function drawWordmark(ctx,x,y,h,color){
+  ctx.save();ctx.fillStyle=color;ctx.strokeStyle=color;ctx.lineJoin="round";ctx.lineCap="round";
+  const g=h*0.9;ctx.lineWidth=h*0.075;
+  ctx.beginPath();ctx.moveTo(x+g*0.08,y+h*0.5);ctx.lineTo(x+g*0.5,y+h*0.12);ctx.lineTo(x+g*0.92,y+h*0.5);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x+g*0.22,y+h*0.45);ctx.lineTo(x+g*0.22,y+h*0.88);ctx.lineTo(x+g*0.78,y+h*0.88);ctx.lineTo(x+g*0.78,y+h*0.45);ctx.stroke();
+  ctx.fillRect(x+g*0.42,y+h*0.6,g*0.16,h*0.28);
+  const tx=x+g+h*0.22;ctx.textBaseline="alphabetic";ctx.textAlign="left";
+  try{ctx.letterSpacing=(h*0.03)+"px"}catch(e){}
+  ctx.font=`800 ${h*0.46}px Manrope, sans-serif`;ctx.fillText("SCHRÖDER",tx,y+h*0.56);
+  try{ctx.letterSpacing=(h*0.11)+"px"}catch(e){}
+  ctx.font=`600 ${h*0.2}px Manrope, sans-serif`;ctx.fillText("IMMOBILIEN",tx+h*0.01,y+h*0.86);
+  const w1=(()=>{try{ctx.letterSpacing=(h*0.03)+"px"}catch(e){}ctx.font=`800 ${h*0.46}px Manrope, sans-serif`;return ctx.measureText("SCHRÖDER").width})();
+  ctx.restore();return tx-x+w1;
+}
+function logoWidth(h){if(S.logo)return Math.min(h*S.logo.width/S.logo.height,h*6);const c=document.createElement("canvas").getContext("2d");return drawWordmark(c,0,0,h,"#000")}
+function drawLogo(ctx,x,y,h,color){
+  if(S.logo){const w=logoWidth(h),hh=w*S.logo.height/S.logo.width;ctx.drawImage(S.logo,x,y+(h-hh)/2,w,hh);return w}
+  return drawWordmark(ctx,x,y,h,color)}
+function paintLogoPreviews(){
+  const ink=getComputedStyle(document.documentElement).getPropertyValue("--ink").trim()||"#16202b";
+  [["#brandlogo",ink],["#logoprev","#1d2733"]].forEach(([sel,col])=>{const c=$(sel),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);
+    const h=c.height*0.8,w=logoWidth(h),k=Math.min(1,(c.width-8)/w);const hh=h*k;drawLogo(ctx,4,(c.height-hh)/2,hh,col)});
+  $("#logo-reset").hidden=!S.logo;
+  $("#logo-note").textContent=S.logo?"Eigenes Logo ist auf diesem Gerät gespeichert.":"Platzhalter-Schriftzug. Lade das echte Logo (PNG mit transparentem Hintergrund) einmal hoch.";
+}
+function loadLogo(){const d=store.get("logo",null);if(!d){paintLogoPreviews();return}const im=new Image();im.onload=()=>{S.logo=im;paintLogoPreviews()};im.onerror=()=>paintLogoPreviews();im.src=d}
+$("#f-logo").addEventListener("change",async e=>{const f=e.target.files[0];if(!f)return;const im=new Image();im.src=URL.createObjectURL(f);
+  try{await im.decode()}catch(err){toast("Diese Datei kann nicht gelesen werden.");return}
+  const k=Math.min(1,1200/im.naturalWidth,400/im.naturalHeight);const c=document.createElement("canvas");c.width=Math.round(im.naturalWidth*k)||600;c.height=Math.round(im.naturalHeight*k)||200;
+  c.getContext("2d").drawImage(im,0,0,c.width,c.height);const url=c.toDataURL("image/png");store.set("logo",url);
+  const im2=new Image();im2.onload=()=>{S.logo=im2;paintLogoPreviews();dirty();toast("Logo übernommen")};im2.src=url;e.target.value=""});
+$("#logo-reset").addEventListener("click",()=>{S.logo=null;try{localStorage.removeItem("gs_logo")}catch(e){}paintLogoPreviews();dirty()});
+
+/* ================= Navigation ================= */
+let step=1;
+function go(n){
+  if(n>=3&&!S.plan)loadExample();
+  step=n;$$(".step").forEach((s,i)=>s.hidden=i+1!==n);
+  $$(".steps button").forEach(b=>{if(+b.dataset.go===n)b.setAttribute("aria-current","step");else b.removeAttribute("aria-current")});
+  window.scrollTo({top:0});
+  if(n===3){syncEditorUI();requestAnimationFrame(()=>{sizeEditor();fitView();draw()})}
+  if(n===4)buildExport();
+}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b){e.preventDefault();go(+b.dataset.go)}});
+
+/* ================= Step 1 form ================= */
+function initForm(){
+  const sel=$("#f-floor");FLOORS.forEach((f,i)=>{const o=document.createElement("option");o.value=i;o.textContent=f[0];sel.appendChild(o)});
+  const m=S.meta;$("#f-objnr").value=m.objnr;$("#f-addr").value=m.addr;sel.value=m.floor;$("#f-floor-other").value=m.floorOther;
+  $("#f-floor-other").hidden=FLOORS[m.floor][2]!=="Sonstiges";$("#f-email").value=m.email;$("#f-email2").value=m.email;
+  (m.furnished?$("#f-furn-yes"):$("#f-furn-no")).checked=true;
+  $("#f-objnr").oninput=e=>{m.objnr=e.target.value;saveMeta();dirty()};
+  $("#f-addr").oninput=e=>{m.addr=e.target.value;saveMeta();dirty()};
+  sel.onchange=e=>{m.floor=+e.target.value;$("#f-floor-other").hidden=FLOORS[m.floor][2]!=="Sonstiges";saveMeta();dirty()};
+  $("#f-floor-other").oninput=e=>{m.floorOther=e.target.value;saveMeta();dirty()};
+  $$('input[name=furn]').forEach(r=>r.onchange=()=>{m.furnished=$("#f-furn-yes").checked;saveMeta()});
+  const em=e=>{m.email=e.target.value.trim();$("#f-email").value=$("#f-email2").value=m.email;saveMeta()};
+  $("#f-email").oninput=em;$("#f-email2").oninput=em;
+  // design cards
+  const wrap=$("#designs"),seg=$("#design-seg");
+  Object.entries(DESIGNS).forEach(([k,d])=>{
+    const l=document.createElement("label");l.className="design";
+    l.innerHTML=`<input type="radio" name="design" value="${k}"><canvas width="360" height="200"></canvas><div><b></b><small></small></div>`;
+    l.querySelector("b").textContent=d.name;l.querySelector("small").textContent=d.sub;
+    drawDesignThumb(l.querySelector("canvas"),d);wrap.appendChild(l);
+    const s=document.createElement("label");s.innerHTML=`<input type="radio" name="design2" value="${k}"><span></span>`;s.querySelector("span").textContent=d.name;seg.appendChild(s);
+  });
+  const setD=k=>{m.design=k;saveMeta();$$('input[name=design],input[name=design2]').forEach(i=>i.checked=i.value===k);dirty();if(S.plan){renderPlan();draw();paintFurnIcons()}};
+  $$('input[name=design],input[name=design2]').forEach(i=>{i.checked=i.value===m.design;i.onchange=()=>setD(i.value)});
+}
+function drawDesignThumb(c,d){
+  const x=c.getContext("2d"),W=c.width,H=c.height;x.fillStyle=d.page;x.fillRect(0,0,W,H);
+  const rooms=[[30,40,150,90,"floor"],[180,40,90,90,"wet"],[270,40,60,90,"floor"],[30,130,200,50,"floor"],[230,130,100,50,"wet"]];
+  rooms.forEach(r=>{x.fillStyle=(d[r[4]])||d.paper;x.fillRect(r[0],r[1],r[2],r[3]);
+    if(d.texture&&r[4]==="floor"){x.strokeStyle="rgba(120,90,50,.18)";x.lineWidth=1;for(let y=r[1]+9;y<r[1]+r[3];y+=9){x.beginPath();x.moveTo(r[0],y);x.lineTo(r[0]+r[2],y);x.stroke()}}});
+  x.strokeStyle=d.wall;x.lineWidth=6;x.strokeRect(30,40,300,140);x.lineWidth=3;
+  [[180,40,180,130],[270,40,270,130],[30,130,330,130],[230,130,230,180]].forEach(l=>{x.beginPath();x.moveTo(l[0],l[1]);x.lineTo(l[2],l[3]);x.stroke()});
+  x.fillStyle=d.label;x.font="600 13px Inter, sans-serif";x.textAlign="center";x.fillText("Wohnen",105,90);x.fillText("Bad",225,90);
+  x.fillStyle=d.text;x.textAlign="left";x.font="800 11px Manrope, sans-serif";x.fillText("SCHRÖDER",30,24);
+  x.fillStyle=d.accent;x.fillRect(30,190,300,2);
+}
+
+/* ================= Step 2: photo ================= */
+let photo=null,quad=null,tmp=null;
+function onPhoto(e){const f=e.target.files[0];e.target.value="";if(!f)return;loadPhoto(f)}
+$("#f-cam").addEventListener("change",onPhoto);$("#f-file").addEventListener("change",onPhoto);
+async function loadPhoto(f){
+  const im=new Image();im.src=URL.createObjectURL(f);
+  try{await im.decode()}catch(e){toast("Das Bild konnte nicht geöffnet werden. Bitte JPG oder PNG verwenden.");return}
+  const k=Math.min(1,2400/Math.max(im.naturalWidth,im.naturalHeight));
+  photo=document.createElement("canvas");photo.width=Math.round(im.naturalWidth*k);photo.height=Math.round(im.naturalHeight*k);
+  photo.getContext("2d").drawImage(im,0,0,photo.width,photo.height);
+  resetCorners(0.04);$("#crop-card").hidden=false;$("#clean-card").hidden=true;
+  requestAnimationFrame(()=>{drawCrop();$("#crop-card").scrollIntoView({behavior:"smooth",block:"start"})});
+}
+function resetCorners(m){const W=photo.width,H=photo.height;quad=[[W*m,H*m],[W*(1-m),H*m],[W*(1-m),H*(1-m)],[W*m,H*(1-m)]]}
+$("#corners-full").onclick=()=>{resetCorners(0);drawCrop()};
+$("#rot").onclick=()=>{const c=document.createElement("canvas");c.width=photo.height;c.height=photo.width;const x=c.getContext("2d");
+  x.translate(c.width,0);x.rotate(Math.PI/2);x.drawImage(photo,0,0);photo=c;resetCorners(0.04);drawCrop()};
+let cropK=1,dragC=-1,loupe=null;
+function drawCrop(){
+  const c=$("#crop"),wrapW=c.parentElement.clientWidth,maxH=window.innerHeight*0.65;
+  cropK=Math.min(wrapW/photo.width,maxH/photo.height);const dpr=window.devicePixelRatio||1;
+  const cw=photo.width*cropK,ch=photo.height*cropK;c.style.width=cw+"px";c.style.height=ch+"px";c.style.margin="0 auto";
+  c.width=Math.round(cw*dpr);c.height=Math.round(ch*dpr);const x=c.getContext("2d");x.setTransform(dpr,0,0,dpr,0,0);
+  x.drawImage(photo,0,0,cw,ch);
+  x.fillStyle="rgba(10,20,30,.45)";x.beginPath();x.rect(0,0,cw,ch);x.moveTo(quad[0][0]*cropK,quad[0][1]*cropK);
+  for(let i=3;i>=0;i--)x.lineTo(quad[i][0]*cropK,quad[i][1]*cropK);x.closePath();x.fill("evenodd");
+  x.strokeStyle="#4fa3ff";x.lineWidth=2;x.beginPath();quad.forEach((p,i)=>i?x.lineTo(p[0]*cropK,p[1]*cropK):x.moveTo(p[0]*cropK,p[1]*cropK));x.closePath();x.stroke();
+  quad.forEach(p=>{x.beginPath();x.arc(p[0]*cropK,p[1]*cropK,13,0,7);x.fillStyle="rgba(79,163,255,.25)";x.fill();x.lineWidth=2.5;x.stroke();
+    x.beginPath();x.arc(p[0]*cropK,p[1]*cropK,3,0,7);x.fillStyle="#4fa3ff";x.fill()});
+  if(loupe){const R=56,lx=loupe[0]*cropK<cw/2?cw-R-10:R+10,ly=R+10;x.save();x.beginPath();x.arc(lx,ly,R,0,7);x.clip();
+    const sr=R/(3*cropK);x.fillStyle="#000";x.fillRect(lx-R,ly-R,2*R,2*R);x.drawImage(photo,loupe[0]-sr,loupe[1]-sr,2*sr,2*sr,lx-R,ly-R,2*R,2*R);
+    x.strokeStyle="#ff3b30";x.lineWidth=1.5;x.beginPath();x.moveTo(lx-10,ly);x.lineTo(lx+10,ly);x.moveTo(lx,ly-10);x.lineTo(lx,ly+10);x.stroke();x.restore();
+    x.beginPath();x.arc(lx,ly,R,0,7);x.strokeStyle="#fff";x.lineWidth=3;x.stroke()}
+}
+(function(){const c=$("#crop");
+  const pos=e=>{const r=c.getBoundingClientRect();return[(e.clientX-r.left)/cropK,(e.clientY-r.top)/cropK]};
+  c.addEventListener("pointerdown",e=>{const p=pos(e);let best=-1,bd=1e9;quad.forEach((q,i)=>{const d=Math.hypot(q[0]-p[0],q[1]-p[1])*cropK;if(d<bd){bd=d;best=i}});
+    if(bd<48){dragC=best;c.setPointerCapture(e.pointerId);loupe=quad[best];drawCrop()}});
+  c.addEventListener("pointermove",e=>{if(dragC<0)return;const p=pos(e);quad[dragC]=[clamp(p[0],0,photo.width),clamp(p[1],0,photo.height)];loupe=quad[dragC];drawCrop()});
+  const up=()=>{if(dragC>=0){dragC=-1;loupe=null;drawCrop()}};c.addEventListener("pointerup",up);c.addEventListener("pointercancel",up);
+  window.addEventListener("resize",()=>{if(photo&&!$("#crop-card").hidden)drawCrop()});
+})();
+function solve(A,b){const n=b.length,M=A.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;[M[c],M[p]]=[M[p],M[c]];
+    for(let r=0;r<n;r++){if(r===c)continue;const f=M[r][c]/M[c][c];for(let k=c;k<=n;k++)M[r][k]-=f*M[c][k]}}
+  return M.map((r,i)=>r[n]/r[i])}
+function homography(src,dst){const A=[],b=[];for(let i=0;i<4;i++){const[x,y]=src[i],[u,v]=dst[i];
+  A.push([x,y,1,0,0,0,-u*x,-u*y]);b.push(u);A.push([0,0,0,x,y,1,-v*x,-v*y]);b.push(v)}return[...solve(A,b),1]}
+function warp(){
+  const d=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+  let W=Math.max(d(quad[0],quad[1]),d(quad[3],quad[2])),H=Math.max(d(quad[0],quad[3]),d(quad[1],quad[2]));
+  const s=Math.min(1,2000/Math.max(W,H));W=Math.max(50,Math.round(W*s));H=Math.max(50,Math.round(H*s));
+  const h=homography([[0,0],[W,0],[W,H],[0,H]],quad);
+  const sw=photo.width,sh=photo.height,sd=photo.getContext("2d").getImageData(0,0,sw,sh).data,sg=new Uint8Array(sw*sh);
+  for(let i=0;i<sw*sh;i++)sg[i]=(sd[i*4]*0.299+sd[i*4+1]*0.587+sd[i*4+2]*0.114)|0;
+  const g=new Uint8Array(W*H);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const den=h[6]*x+h[7]*y+1,fx=(h[0]*x+h[1]*y+h[2])/den,fy=(h[3]*x+h[4]*y+h[5])/den;
+    const x0=Math.floor(fx),y0=Math.floor(fy);if(x0<0||y0<0||x0>=sw-1||y0>=sh-1){g[y*W+x]=255;continue}
+    const ax=fx-x0,ay=fy-y0,i=y0*sw+x0;
+    g[y*W+x]=(sg[i]*(1-ax)*(1-ay)+sg[i+1]*ax*(1-ay)+sg[i+sw]*(1-ax)*ay+sg[i+sw+1]*ax*ay)|0}
+  return{w:W,h:H,gray:g}
+}
+function binarize(g,w,h,sens,clean){
+  const W1=w+1,I=new Float64Array(W1*(h+1));
+  for(let y=0;y<h;y++){let row=0;for(let x=0;x<w;x++){row+=g[y*w+x];I[(y+1)*W1+x+1]=I[y*W1+x+1]+row}}
+  const hist=new Uint32Array(256);for(let i=0;i<g.length;i++)hist[g[i]]++;
+  let acc=0,bg=255;for(let v=255;v>=0;v--){acc+=hist[v];if(acc>g.length*0.25){bg=v;break}}
+  const r=Math.max(8,Math.round(Math.max(w,h)/35)),m=new Uint8Array(w*h),f=1-sens,dark=bg*0.5;
+  for(let y=0;y<h;y++){const y0=Math.max(0,y-r),y1=Math.min(h,y+r+1);
+    for(let x=0;x<w;x++){const x0=Math.max(0,x-r),x1=Math.min(w,x+r+1);
+      const mean=(I[y1*W1+x1]-I[y0*W1+x1]-I[y1*W1+x0]+I[y0*W1+x0])/((x1-x0)*(y1-y0));const v=g[y*w+x];
+      if(v<mean*f||v<dark)m[y*w+x]=1}}
+  const scale=(w*h)/(1600*1100),mins=[0,25,90,260,600];if(clean>0)removeSmall(m,w,h,Math.round(mins[clean]*scale)+2);
+  return m;
+}
+function removeSmall(m,w,h,min){const n=w*h,seen=new Uint8Array(n),st=new Int32Array(n),comp=new Int32Array(n);
+  for(let i=0;i<n;i++){if(!m[i]||seen[i])continue;let sp=0,c=0;st[sp++]=i;seen[i]=1;
+    while(sp){const p=st[--sp];comp[c++]=p;const x=p%w,y=(p/w)|0;
+      for(let dy=-1;dy<=1;dy++){const yy=y+dy;if(yy<0||yy>=h)continue;for(let dx=-1;dx<=1;dx++){const xx=x+dx;if(xx<0||xx>=w)continue;const q=yy*w+xx;if(m[q]&&!seen[q]){seen[q]=1;st[sp++]=q}}}}
+    if(c<min)for(let k=0;k<c;k++)m[comp[k]]=0}}
+$("#do-warp").onclick=async()=>{const done=busy("Bild wird ausgerichtet …");await tick();try{tmp=warp();runClean()}finally{done()}
+  $("#clean-card").hidden=false;$("#clean-card").scrollIntoView({behavior:"smooth",block:"start"})};
+function runClean(){if(!tmp)return;tmp.mask=binarize(tmp.gray,tmp.w,tmp.h,+$("#f-sens").value/100,+$("#f-clean").value);
+  const c=$("#cleanprev");c.width=tmp.w;c.height=tmp.h;const x=c.getContext("2d"),im=x.createImageData(tmp.w,tmp.h);
+  for(let i=0;i<tmp.mask.length;i++){const v=tmp.mask[i]?20:255;im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}x.putImageData(im,0,0)}
+let cleanT;["#f-sens","#f-clean"].forEach(s=>$(s).addEventListener("input",()=>{clearTimeout(cleanT);cleanT=setTimeout(runClean,120)}));
+$("#commit-plan").onclick=()=>{if(!tmp)return;S.plan={w:tmp.w,h:tmp.h,mask:tmp.mask};S.gray=tmp.gray;S.items=[];S.pxPerM=null;S.isExample=false;undoStack.length=0;sel=null;
+  afterPlanChange();go(3);toast("Grundriss übernommen. Jetzt Räume beschriften.")};
+$("#use-example").onclick=()=>{loadExample();go(3)};
+
+/* ================= Example plan ================= */
+function loadExample(){
+  const W=1600,H=1240,c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
+  x.fillStyle="#fff";x.fillRect(0,0,W,H);x.fillStyle="#000";x.strokeStyle="#000";
+  const T=18,t=10,hw=(x1,x2,y,th)=>x.fillRect(x1-th/2,y-th/2,x2-x1+th,th),vw=(y1,y2,X,th)=>x.fillRect(X-th/2,y1-th/2,th,y2-y1+th);
+  hw(100,1500,100,T);hw(100,1500,1000,T);vw(100,1000,100,T);vw(100,1000,1500,T);
+  hw(100,1500,430,t);hw(100,1180,560,t);vw(100,430,560,t);vw(100,430,820,t);vw(100,430,1180,t);vw(430,1000,1180,t);
+  const clear=(x0,y0,w,h)=>{x.fillStyle="#fff";x.fillRect(x0,y0,w,h);x.fillStyle="#000"};
+  const doorH=(x0,y,dir)=>{clear(x0,y-8,90,16);x.lineWidth=3;x.beginPath();x.moveTo(x0,y);x.lineTo(x0,y+90*dir);x.stroke();
+    x.lineWidth=2;x.beginPath();dir>0?x.arc(x0,y,90,0,Math.PI/2):x.arc(x0,y,90,-Math.PI/2,0);x.stroke()};
+  const doorV=(X,y0,dir)=>{clear(X-8,y0,16,90);x.lineWidth=3;x.beginPath();x.moveTo(X,y0);x.lineTo(X+90*dir,y0);x.stroke();
+    x.lineWidth=2;x.beginPath();dir>0?x.arc(X,y0,90,0,Math.PI/2):x.arc(X,y0,90,Math.PI/2,Math.PI);x.stroke()};
+  doorH(300,430,-1);doorH(600,430,-1);doorH(900,430,-1);doorH(1250,430,-1);doorH(560,560,1);doorV(1180,450,1);doorV(100,450,1);
+  const win=(x0,y,w,horiz)=>{if(horiz){clear(x0,y-T/2-1,w,T+2);x.fillRect(x0,y-T/2,w,2.5);x.fillRect(x0,y+T/2-2.5,w,2.5);x.fillRect(x0,y-1,w,2);x.fillRect(x0,y-T/2,3,T);x.fillRect(x0+w-3,y-T/2,3,T)}
+    else{clear(y-T/2-1,x0,T+2,w);x.fillRect(y-T/2,x0,2.5,w);x.fillRect(y+T/2-2.5,x0,2.5,w);x.fillRect(y-1,x0,2,w);x.fillRect(y-T/2,x0,T,3);x.fillRect(y-T/2,x0+w-3,T,3)}};
+  win(220,100,220,true);win(630,100,120,true);win(920,100,180,true);win(1260,100,160,true);win(250,1000,180,true);win(700,1000,220,true);win(1260,1000,160,true);win(620,1500,220,false);
+  x.fillRect(300,1000,6,190);x.fillRect(300,1184,600,6);x.fillRect(894,1000,6,190);
+  const d=x.getImageData(0,0,W,H).data,m=new Uint8Array(W*H),g=new Uint8Array(W*H);
+  for(let i=0;i<W*H;i++){g[i]=d[i*4];m[i]=d[i*4]<128?1:0}
+  S.plan={w:W,h:H,mask:m};S.gray=g;S.pxPerM=100;S.isExample=true;undoStack.length=0;sel=null;
+  S.items=[["Schlafen",15.18,330,265],["Bad",8.58,690,265],["Kind",11.88,1000,265],["Arbeiten",10.56,1340,265],["Flur",14.04,820,495],
+    ["Wohnen/Essen",47.52,640,780],["Küche",18.24,1340,715],["Balkon",4.5,600,1095]].map(r=>({id:nid(),type:"room",name:r[0],area:r[1],x:r[2],y:r[3]}));
+  afterPlanChange();
+}
+
+/* ================= Regions / floor fill ================= */
+function dilate(m,w,h,r){const a=new Uint8Array(w*h),b=new Uint8Array(w*h);
+  for(let y=0;y<h;y++){let cnt=0;const o=y*w;for(let x=0;x<Math.min(r,w);x++)cnt+=m[o+x];
+    for(let x=0;x<w;x++){if(x+r<w)cnt+=m[o+x+r];if(x-r-1>=0)cnt-=m[o+x-r-1];a[o+x]=cnt>0?1:0}}
+  for(let x=0;x<w;x++){let cnt=0;for(let y=0;y<Math.min(r,h);y++)cnt+=a[y*w+x];
+    for(let y=0;y<h;y++){if(y+r<h)cnt+=a[(y+r)*w+x];if(y-r-1>=0)cnt-=a[(y-r-1)*w+x];b[y*w+x]=cnt>0?1:0}}
+  return b}
+function computeRegions(){
+  S.regions=null;S.regionKind=[];S.regionSize=[];if(!S.plan)return;
+  const{w,h,mask}=S.plan,rooms=S.items.filter(i=>i.type==="room");rooms.forEach(r=>r._reg=-1);if(!rooms.length)return;
+  const r=Math.max(2,Math.round(Math.max(w,h)/320)),dm=dilate(mask,w,h,r),reg=new Int16Array(w*h).fill(-1),q=new Int32Array(w*h);
+  let nreg=0;
+  rooms.forEach(rm=>{
+    let sx=Math.round(rm.x),sy=Math.round(rm.y),seed=-1;
+    for(let rad=0;rad<=40&&seed<0;rad+=2)for(let a=0;a<16&&seed<0;a++){const xx=Math.round(sx+Math.cos(a/16*6.283)*rad),yy=Math.round(sy+Math.sin(a/16*6.283)*rad);
+      if(xx<0||yy<0||xx>=w||yy>=h)continue;const p=yy*w+xx;if(!dm[p])seed=p;if(rad===0)break}
+    if(seed<0)return;
+    if(reg[seed]>=0){rm._reg=reg[seed];return}
+    const id=nreg;let qh=0,qt=0,border=false;q[qt++]=seed;reg[seed]=id;
+    while(qh<qt){const p=q[qh++],x=p%w,y=(p/w)|0;if(x===0||y===0||x===w-1||y===h-1){border=true;break}
+      const nb=[p-1,p+1,p-w,p+w];for(let k=0;k<4;k++){const n=nb[k];if(!dm[n]&&reg[n]<0){reg[n]=id;q[qt++]=n}}}
+    if(border||qt>w*h*0.75){for(let k=0;k<qt;k++)reg[q[k]]=-1;
+      // reset any pixels marked after break
+      for(let k=qh;k<qt;k++)reg[q[k]]=-1;return}
+    rm._reg=id;S.regionKind[id]=roomKind(rm.name);nreg++;
+  });
+  if(!nreg)return;
+  // grow into the dilation band (not into walls)
+  let cur=reg;for(let it=0;it<r+1;it++){const nx=cur.slice();let ch=0;
+    for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const p=y*w+x;if(cur[p]>=0||mask[p])continue;
+      const v=cur[p-1]>=0?cur[p-1]:cur[p+1]>=0?cur[p+1]:cur[p-w]>=0?cur[p-w]:cur[p+w];if(v>=0){nx[p]=v;ch++}}
+    cur=nx;if(!ch)break}
+  const size=new Array(nreg).fill(0);for(let i=0;i<w*h;i++)if(cur[i]>=0)size[cur[i]]++;
+  S.regions=cur;S.regionSize=size;
+}
+function renderPlan(){
+  if(!S.plan)return;const{w,h,mask}=S.plan,d=D(),c=S.planCanvas;if(c.width!==w||c.height!==h){c.width=w;c.height=h}
+  const x=c.getContext("2d"),im=x.createImageData(w,h),px=im.data;
+  const wall=hex(d.wall),paper=hex(d.paper),cols={floor:d.floor&&hex(d.floor),wet:d.wet&&hex(d.wet),out:d.out&&hex(d.out),plain:d.plain&&hex(d.plain)};
+  const reg=S.fill?S.regions:null,K=S.regionKind,P=ppm(),plank=Math.max(4,P*0.19),plankL=plank*7,tile=Math.max(4,P*0.3);
+  for(let y=0;y<h;y++){const pi=Math.floor(y/plank),onPl=(y%plank)<1,tone=((pi*2654435761>>>0)%7-3)*0.9,off=((pi*5)%7)*plank;
+    for(let xx=0;xx<w;xx++){const i=y*w+xx,o=i*4;let col=paper,dv=0;
+      if(mask[i])col=wall;
+      else if(reg&&reg[i]>=0){const k=K[reg[i]],cc=cols[k];if(cc){col=cc;
+        if(d.texture&&k==="floor"){dv=tone;if(onPl||((xx+off)%plankL)<1)dv-=16}
+        else if(k==="wet"&&(y%tile<1||xx%tile<1))dv=-14
+        else if(k==="out"&&((xx+y)%Math.round(tile*0.7))<1)dv=-10}}
+      px[o]=col[0]+dv;px[o+1]=col[1]+dv;px[o+2]=col[2]+dv;px[o+3]=255}}
+  x.putImageData(im,0,0);
+}
+function afterPlanChange(){computeRegions();renderPlan();dirty()}
+
+/* ================= Furniture drawing ================= */
+function rr(x,X,Y,W,H,R){R=Math.min(R,W/2,H/2);x.beginPath();x.moveTo(X+R,Y);x.arcTo(X+W,Y,X+W,Y+H,R);x.arcTo(X+W,Y+H,X,Y+H,R);x.arcTo(X,Y+H,X,Y,R);x.arcTo(X,Y,X+W,Y,R);x.closePath()}
+function fs(x){x.fill();x.stroke()}
+function drawFurn(x,kind,w,d,P,col){
+  const L=-w/2,T=-d/2,cm=v=>v/100*P;x.lineWidth=Math.max(1,P*0.016);x.strokeStyle=col.s;x.fillStyle=col.f;x.lineJoin="round";
+  const chair=(cx,cy,a)=>{x.save();x.translate(cx,cy);x.rotate(a);const s=cm(42);rr(x,-s/2,-s/2,s,s,cm(6));fs(x);x.beginPath();x.moveTo(-s/2+cm(4),-s/2+cm(8));x.lineTo(s/2-cm(4),-s/2+cm(8));x.stroke();x.restore()};
+  switch(kind){
+    case"bett2":case"bett1":{rr(x,L,T,w,d,cm(4));fs(x);const n=kind==="bett2"?2:1,pw=(w-cm(12)-(n-1)*cm(6))/n;
+      for(let i=0;i<n;i++){rr(x,L+cm(6)+i*(pw+cm(6)),T+cm(8),pw,cm(28),cm(6));fs(x)}
+      x.beginPath();x.moveTo(L,T+cm(48));x.lineTo(L+w,T+cm(48));x.stroke();x.beginPath();x.moveTo(L+w-cm(40),T+cm(48));x.lineTo(L+w,T+cm(80));x.stroke();break}
+    case"sofa":case"sessel":{rr(x,L,T,w,d,cm(8));fs(x);const a=cm(18),b=cm(22);rr(x,L,T,a,d,cm(6));fs(x);rr(x,L+w-a,T,a,d,cm(6));fs(x);
+      rr(x,L+a,T,w-2*a,b,cm(4));fs(x);const n=kind==="sofa"?Math.max(2,Math.round((w-2*a)/cm(65))):1,sw=(w-2*a)/n;
+      for(let i=1;i<n;i++){x.beginPath();x.moveTo(L+a+i*sw,T+b);x.lineTo(L+a+i*sw,T+d);x.stroke()}break}
+    case"ecksofa":{const a=cm(95);x.beginPath();x.moveTo(L,T);x.lineTo(L+w,T);x.lineTo(L+w,T+a);x.lineTo(L+a,T+a);x.lineTo(L+a,T+d);x.lineTo(L,T+d);x.closePath();fs(x);
+      const b=cm(24);x.beginPath();x.moveTo(L+w,T+b);x.lineTo(L+b,T+b);x.lineTo(L+b,T+d);x.stroke();
+      x.beginPath();x.moveTo(L+a,T+b);x.lineTo(L+a,T+a);x.moveTo(L+b,T+a);x.lineTo(L+a,T+a);x.stroke();
+      const seg=(w-a)/Math.max(1,Math.round((w-a)/cm(70)));for(let X=L+a+seg;X<L+w-2;X+=seg){x.beginPath();x.moveTo(X,T+b);x.lineTo(X,T+a);x.stroke()}break}
+    case"couchtisch":rr(x,L,T,w,d,cm(4));fs(x);rr(x,L+cm(8),T+cm(8),w-cm(16),d-cm(16),cm(2));x.stroke();break;
+    case"esstisch":{const ch=cm(45),td=Math.max(cm(60),d-2*ch);[-1,1].forEach(sx=>{chair(sx*w/4,-td/2-cm(18),0);chair(sx*w/4,td/2+cm(18),Math.PI)});
+      rr(x,L,-td/2,w,td,cm(3));fs(x);break}
+    case"rundtisch":{const R=Math.max(cm(40),(Math.min(w,d)-cm(90))/2);for(let i=0;i<4;i++){const a=i*Math.PI/2;chair(Math.sin(a)*(R+cm(18)),-Math.cos(a)*(R+cm(18)),a)}
+      x.beginPath();x.arc(0,0,R,0,7);fs(x);break}
+    case"schrank":{x.fillRect(L,T,w,d);x.strokeRect(L,T,w,d);x.save();x.setLineDash([cm(6),cm(4)]);x.beginPath();x.moveTo(L+cm(4),0);x.lineTo(L+w-cm(4),0);x.stroke();x.restore();
+      const n=Math.max(1,Math.round(w/cm(50)));for(let i=1;i<n;i++){x.beginPath();x.moveTo(L+i*w/n,T+d-cm(6));x.lineTo(L+i*w/n,T+d);x.stroke()}
+      x.beginPath();x.moveTo(L,T+d-cm(6));x.lineTo(L+w,T+d-cm(6));x.stroke();break}
+    case"kommode":{x.fillRect(L,T,w,d);x.strokeRect(L,T,w,d);const n=Math.max(2,Math.round(w/cm(40)));for(let i=1;i<n;i++){x.beginPath();x.moveTo(L+i*w/n,T+d-cm(5));x.lineTo(L+i*w/n,T+d);x.stroke()}break}
+    case"schreibtisch":{const td=Math.min(d*0.6,cm(75));chair(0,T+td+cm(26),Math.PI);x.fillRect(L,T,w,td);x.strokeRect(L,T,w,td);rr(x,-cm(25),T+cm(8),cm(50),cm(5),cm(2));x.stroke();break}
+    case"tv":{x.fillRect(L,T,w,d);x.strokeRect(L,T,w,d);rr(x,-w*0.32,T+d*0.35,w*0.64,d*0.22,cm(2));x.fillStyle=col.s;x.fill();break}
+    case"kueche":{x.fillRect(L,T,w,d);x.strokeRect(L,T,w,d);x.beginPath();x.moveTo(L,T+d-cm(5));x.lineTo(L+w,T+d-cm(5));x.stroke();
+      rr(x,L+w*0.18,T+cm(9),cm(50),d-cm(22),cm(5));x.stroke();x.beginPath();x.arc(L+w*0.18+cm(25),T+cm(14),cm(2.5),0,7);x.stroke();
+      const hx=L+w*0.68;[[0,0],[1,0],[0,1],[1,1]].forEach(([i,j])=>{x.beginPath();x.arc(hx+i*cm(26),T+cm(17)+j*cm(24),cm(i^j?8:10),0,7);x.stroke()});break}
+    case"kuehl":{x.fillRect(L,T,w,d);x.strokeRect(L,T,w,d);x.beginPath();x.moveTo(L,T+d-cm(6));x.lineTo(L+w,T+d-cm(6));x.stroke();x.font=`600 ${cm(22)}px Inter, sans-serif`;x.fillStyle=col.s;x.textAlign="center";x.textBaseline="middle";x.fillText("K",0,-cm(3));break}
+    case"wanne":{rr(x,L,T,w,d,cm(8));fs(x);rr(x,L+cm(7),T+cm(7),w-cm(14),d-cm(14),Math.min(w,d)*0.32);x.stroke();x.beginPath();x.arc(L+w-cm(22),0,cm(3),0,7);x.stroke();break}
+    case"dusche":{x.fillRect(L,T,w,d);x.strokeRect(L,T,w,d);x.save();x.lineWidth*=0.6;x.beginPath();x.moveTo(L,T);x.lineTo(L+w,T+d);x.moveTo(L+w,T);x.lineTo(L,T+d);x.stroke();x.restore();x.beginPath();x.arc(0,0,cm(4),0,7);fs(x);break}
+    case"wc":{rr(x,L,T,w,d*0.28,cm(3));fs(x);x.beginPath();x.ellipse(0,T+d*0.28+(d*0.72)/2-cm(1),w*0.46,d*0.36,0,0,7);fs(x);x.beginPath();x.ellipse(0,T+d*0.28+(d*0.72)/2,w*0.3,d*0.24,0,0,7);x.stroke();break}
+    case"becken":{rr(x,L,T,w,d,cm(6));fs(x);x.beginPath();x.ellipse(0,cm(3),w*0.36,d*0.3,0,0,7);x.stroke();x.beginPath();x.arc(0,T+cm(6),cm(2.5),0,7);x.stroke();break}
+    case"waschm":{x.fillRect(L,T,w,d);x.strokeRect(L,T,w,d);x.beginPath();x.arc(0,cm(3),Math.min(w,d)*0.33,0,7);x.stroke();x.beginPath();x.arc(0,cm(3),Math.min(w,d)*0.22,0,7);x.stroke();break}
+    case"pflanze":{const R=Math.min(w,d)/2;x.save();x.fillStyle=col.f;for(let i=0;i<7;i++){const a=i/7*6.283;x.beginPath();x.ellipse(Math.cos(a)*R*0.5,Math.sin(a)*R*0.5,R*0.5,R*0.26,a,0,7);fs(x)}x.restore();x.beginPath();x.arc(0,0,R*0.18,0,7);fs(x);break}
+    case"teppich":{x.save();x.fillStyle=col.rug;rr(x,L,T,w,d,cm(3));x.fill();x.setLineDash([cm(5),cm(4)]);x.stroke();x.restore();break}
+  }
+}
+function drawNorth(x,cx,cy,s,rot,col){x.save();x.translate(cx,cy);x.rotate(rot*Math.PI/180);x.strokeStyle=col;x.fillStyle=col;x.lineWidth=s*0.05;
+  x.beginPath();x.arc(0,0,s*0.42,0,7);x.stroke();x.beginPath();x.moveTo(0,-s*0.5);x.lineTo(s*0.16,s*0.18);x.lineTo(0,s*0.08);x.lineTo(-s*0.16,s*0.18);x.closePath();x.fill();
+  x.rotate(-rot*Math.PI/180);x.font=`700 ${s*0.3}px Manrope, sans-serif`;x.textAlign="center";x.textBaseline="bottom";
+  const a=rot*Math.PI/180;x.fillText("N",Math.sin(a)*s*0.72,-Math.cos(a)*s*0.72+s*0.15);x.restore()}
+
+/* ================= Items ================= */
+const roomFs=()=>planMax()/62*S.labelScale;
+function roomLayout(x,it){const f=roomFs();x.font=`600 ${f}px Inter, sans-serif`;const w1=x.measureText(it.name||"").width;
+  const at=it.area?fmtArea(it.area):"";x.font=`400 ${f*0.8}px Inter, sans-serif`;const w2=at?x.measureText(at).width:0;
+  const H=at?f*2.05:f*1.1,W=Math.max(w1,w2);return{f,at,W,H,bb:{x:it.x-W/2-f*0.3,y:it.y-H/2-f*0.2,w:W+f*0.6,h:H+f*0.4}}}
+function drawItem(x,it,d){
+  if(it.type==="room"){const L=roomLayout(x,it);it._bb=L.bb;x.textAlign="center";x.textBaseline="middle";
+    const y1=L.at?it.y-L.H/2+L.f*0.55:it.y;
+    const put=(t,y,font,col)=>{x.font=font;if(d.halo){x.lineWidth=L.f*0.28;x.strokeStyle=d.halo;x.lineJoin="round";x.strokeText(t,it.x,y)}x.fillStyle=col;x.fillText(t,it.x,y)};
+    put(it.name||"",y1,`600 ${L.f}px Inter, sans-serif`,d.label);if(L.at)put(L.at,y1+L.f*1.12,`400 ${L.f*0.8}px Inter, sans-serif`,d.area);return}
+  if(it.type==="furn"){const P=ppm(),w=it.w/100*P,h=it.d/100*P;x.save();x.translate(it.x,it.y);x.rotate(it.rot*Math.PI/180);
+    drawFurn(x,it.kind,w,h,P,{s:d.furnS,f:d.furnF,rug:d.rug});x.restore();
+    const c=Math.abs(Math.cos(it.rot*Math.PI/180)),s=Math.abs(Math.sin(it.rot*Math.PI/180)),bw=w*c+h*s,bh=w*s+h*c;it._bb={x:it.x-bw/2,y:it.y-bh/2,w:bw,h:bh}}
+}
+function drawItems(x,d){S.items.filter(i=>i.kind==="teppich").forEach(i=>drawItem(x,i,d));S.items.filter(i=>i.type==="furn"&&i.kind!=="teppich").forEach(i=>drawItem(x,i,d));S.items.filter(i=>i.type==="room").forEach(i=>drawItem(x,i,d))}
+function hitItem(p){const order=[...S.items.filter(i=>i.type==="room"),...S.items.filter(i=>i.type==="furn"&&i.kind!=="teppich"),...S.items.filter(i=>i.kind==="teppich")];
+  for(const it of order){if(it.type==="room"){const b=it._bb;if(b&&p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h)return it}
+    else{const P=ppm(),a=-it.rot*Math.PI/180,dx=p.x-it.x,dy=p.y-it.y,lx=dx*Math.cos(a)-dy*Math.sin(a),ly=dx*Math.sin(a)+dy*Math.cos(a),pad=8/V.z;
+      if(Math.abs(lx)<=it.w/200*P+pad&&Math.abs(ly)<=it.d/200*P+pad)return it}}return null}
+
+/* ================= Editor ================= */
+const ed=$("#ed"),ex=ed.getContext("2d");let V={z:1,ox:0,oy:0},dpr=1,tool="move",sel=null,act=null,pinch=null;const ptrs=new Map();const undoStack=[];
+S.brush=22;S.wallCm=12;let scaleLine=null;
+function sizeEditor(){const r=ed.parentElement.getBoundingClientRect();dpr=window.devicePixelRatio||1;ed.width=Math.max(1,Math.round(r.width*dpr));ed.height=Math.max(1,Math.round(r.height*dpr))}
+function fitView(){if(!S.plan)return;const cw=ed.width/dpr,ch=ed.height/dpr,z=Math.min(cw/S.plan.w,ch/S.plan.h)*0.94;V={z,ox:(cw-S.plan.w*z)/2,oy:(ch-S.plan.h*z)/2}}
+new ResizeObserver(()=>{if(step===3){sizeEditor();draw()}}).observe($("#stage"));
+const toPlan=(cx,cy)=>({x:(cx-V.ox)/V.z,y:(cy-V.oy)/V.z});
+function draw(){
+  if(!S.plan||step!==3)return;const d=D(),cw=ed.width/dpr,ch=ed.height/dpr;
+  ex.setTransform(dpr,0,0,dpr,0,0);ex.clearRect(0,0,cw,ch);
+  ex.save();ex.translate(V.ox,V.oy);ex.scale(V.z,V.z);
+  ex.shadowColor="rgba(0,0,0,.18)";ex.shadowBlur=18;ex.fillStyle=d.paper;ex.fillRect(0,0,S.plan.w,S.plan.h);ex.shadowBlur=0;ex.shadowColor="transparent";
+  ex.imageSmoothingEnabled=V.z<1.5;ex.drawImage(S.planCanvas,0,0);drawItems(ex,d);
+  if(sel&&sel._bb){const b=sel._bb;ex.strokeStyle="#2f7fe0";ex.lineWidth=2/V.z;ex.setLineDash([6/V.z,4/V.z]);ex.strokeRect(b.x,b.y,b.w,b.h);ex.setLineDash([])}
+  const ln=(act&&(act.t==="wall"||act.t==="scale"))?act:(scaleLine&&tool==="scale"?{a:scaleLine.a,b:scaleLine.b,t:"scale"}:null);
+  if(ln){ex.strokeStyle=ln.t==="wall"?d.wall:"#e0662f";ex.lineCap="butt";ex.lineWidth=ln.t==="wall"?S.wallCm/100*ppm():3/V.z;if(ln.t==="scale")ex.setLineDash([8/V.z,5/V.z]);
+    ex.beginPath();ex.moveTo(ln.a.x,ln.a.y);ex.lineTo(ln.b.x,ln.b.y);ex.stroke();ex.setLineDash([]);
+    if(ln.t==="scale"){[ln.a,ln.b].forEach(p=>{ex.beginPath();ex.arc(p.x,p.y,5/V.z,0,7);ex.fillStyle="#e0662f";ex.fill()})}}
+  ex.restore();
+  if(sel&&sel.type==="furn"&&sel._bb){const h=handles();ex.fillStyle="#fff";ex.strokeStyle="#2f7fe0";ex.lineWidth=2;
+    ex.beginPath();ex.moveTo(h.c.x,h.c.y);ex.lineTo(h.rot.x,h.rot.y);ex.stroke();
+    [h.rot,h.size].forEach((p,i)=>{ex.beginPath();i?ex.rect(p.x-9,p.y-9,18,18):ex.arc(p.x,p.y,10,0,7);ex.fill();ex.stroke()});
+    ex.fillStyle="#2f7fe0";ex.font="700 12px Inter, sans-serif";ex.textAlign="center";ex.textBaseline="middle";ex.fillText("↻",h.rot.x,h.rot.y+0.5)}
+  if(tool==="erase"&&hover){ex.beginPath();ex.arc(hover.x,hover.y,S.brush,0,7);ex.strokeStyle="#e0662f";ex.lineWidth=1.5;ex.stroke()}
+  if(S.north)drawNorth(ex,cw-38,40,52,S.northRot,d.wall);
+}
+let hover=null;
+function handles(){const P=ppm(),it=sel,a=it.rot*Math.PI/180,w=it.w/100*P,h=it.d/100*P,sc=p=>({x:V.ox+p.x*V.z,y:V.oy+p.y*V.z});
+  const loc=(lx,ly)=>({x:it.x+lx*Math.cos(a)-ly*Math.sin(a),y:it.y+lx*Math.sin(a)+ly*Math.cos(a)});
+  const c=sc({x:it.x,y:it.y}),top=sc(loc(0,-h/2)),dirx=Math.sin(a),diry=-Math.cos(a);
+  return{c:top,rot:{x:top.x+dirx*30,y:top.y+diry*30},size:sc(loc(w/2,h/2)),center:c}}
+function pushUndo(withMask){undoStack.push({items:JSON.stringify(S.items),mask:withMask?S.plan.mask.slice():null,ppm:S.pxPerM});if(undoStack.length>15)undoStack.shift()}
+$("#undo").onclick=()=>{const u=undoStack.pop();if(!u){toast("Nichts zum Rückgängigmachen");return}S.items=JSON.parse(u.items);if(u.mask)S.plan.mask=u.mask;S.pxPerM=u.ppm;
+  sel=sel&&S.items.find(i=>i.id===sel.id)||null;afterPlanChange();draw();renderSel();syncEditorUI()};
+function eraseAt(p){const r=S.brush/V.z,{w,h,mask}=S.plan,x0=Math.max(0,Math.floor(p.x-r)),x1=Math.min(w-1,Math.ceil(p.x+r)),y0=Math.max(0,Math.floor(p.y-r)),y1=Math.min(h-1,Math.ceil(p.y+r));
+  const c=S.planCanvas.getContext("2d"),col=D().paper;c.fillStyle=col;
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){if((x-p.x)**2+(y-p.y)**2<=r*r&&mask[y*w+x]){mask[y*w+x]=0;c.fillRect(x,y,1,1)}}}
+function stampLine(a,b,th){const{w,h,mask}=S.plan,r=Math.max(1,th/2),x0=Math.max(0,Math.floor(Math.min(a.x,b.x)-r)),x1=Math.min(w-1,Math.ceil(Math.max(a.x,b.x)+r)),
+  y0=Math.max(0,Math.floor(Math.min(a.y,b.y)-r)),y1=Math.min(h-1,Math.ceil(Math.max(a.y,b.y)+r)),dx=b.x-a.x,dy=b.y-a.y,L2=dx*dx+dy*dy||1;
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const t=clamp(((x-a.x)*dx+(y-a.y)*dy)/L2,0,1),px=a.x+t*dx-x,py=a.y+t*dy-y;if(px*px+py*py<=r*r)mask[y*w+x]=1}}
+function snap(a,b){const dx=b.x-a.x,dy=b.y-a.y,ang=Math.abs(Math.atan2(dy,dx)*180/Math.PI)%90;if(ang<6||ang>84)return Math.abs(dx)>Math.abs(dy)?{x:b.x,y:a.y}:{x:a.x,y:b.y};return b}
+const cpos=e=>{const r=ed.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}};
+ed.addEventListener("pointerdown",e=>{
+  ed.setPointerCapture(e.pointerId);const c=cpos(e);ptrs.set(e.pointerId,c);
+  if(ptrs.size===2){if(act&&act.t==="erase"&&act.undoPushed){afterPlanChange()}act=null;const[a,b]=[...ptrs.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1,cx:(a.x+b.x)/2,cy:(a.y+b.y)/2,z:V.z,ox:V.ox,oy:V.oy};draw();return}
+  if(ptrs.size>2)return;const p=toPlan(c.x,c.y);
+  if(tool==="move"){
+    if(sel&&sel.type==="furn"){const h=handles();if(Math.hypot(c.x-h.rot.x,c.y-h.rot.y)<22){pushUndo();act={t:"rot"};return}
+      if(Math.hypot(c.x-h.size.x,c.y-h.size.y)<22){pushUndo();act={t:"size",w0:sel.w,d0:sel.d};return}}
+    const it=hitItem(p);if(it){sel=it;act={t:"drag",dx:p.x-it.x,dy:p.y-it.y,moved:false};renderSel();draw();return}
+    if(sel){sel=null;renderSel()}act={t:"pan",sx:c.x,sy:c.y,ox:V.ox,oy:V.oy};draw();return}
+  if(tool==="erase"){pushUndo(true);act={t:"erase",undoPushed:true};eraseAt(p);draw();return}
+  if(tool==="wall"||tool==="scale"){act={t:tool,a:p,b:p};draw()}
+});
+ed.addEventListener("pointermove",e=>{const c=cpos(e);hover=c;
+  if(ptrs.has(e.pointerId))ptrs.set(e.pointerId,c);
+  if(pinch&&ptrs.size===2){const[a,b]=[...ptrs.values()],nd=Math.hypot(a.x-b.x,a.y-b.y),ncx=(a.x+b.x)/2,ncy=(a.y+b.y)/2,nz=clamp(pinch.z*nd/pinch.d,0.05,12);
+    const px=(pinch.cx-pinch.ox)/pinch.z,py=(pinch.cy-pinch.oy)/pinch.z;V.z=nz;V.ox=ncx-px*nz;V.oy=ncy-py*nz;draw();return}
+  if(!act){if(tool==="erase")draw();return}const p=toPlan(c.x,c.y);
+  if(act.t==="pan"){V.ox=act.ox+c.x-act.sx;V.oy=act.oy+c.y-act.sy}
+  else if(act.t==="drag"){if(!act.moved){pushUndo();act.moved=true}sel.x=p.x-act.dx;sel.y=p.y-act.dy}
+  else if(act.t==="rot"){let a=Math.atan2(p.x-sel.x,-(p.y-sel.y))*180/Math.PI;a=(a+360)%360;const s=Math.round(a/15)*15;sel.rot=Math.abs(a-s)<6?s%360:Math.round(a);renderSel(true)}
+  else if(act.t==="size"){const P=ppm(),r=-sel.rot*Math.PI/180,dx=p.x-sel.x,dy=p.y-sel.y,lx=dx*Math.cos(r)-dy*Math.sin(r),ly=dx*Math.sin(r)+dy*Math.cos(r);
+    sel.w=clamp(Math.round(Math.abs(lx)*2/P*100/5)*5,20,800);sel.d=clamp(Math.round(Math.abs(ly)*2/P*100/5)*5,20,800);renderSel(true)}
+  else if(act.t==="erase")eraseAt(p);
+  else if(act.t==="wall"||act.t==="scale")act.b=snap(act.a,p);
+  draw()});
+function endPtr(e){ptrs.delete(e.pointerId);if(pinch){if(ptrs.size<2)pinch=null;return}
+  if(!act)return;const a=act;act=null;
+  if(a.t==="drag"&&a.moved){dirty();if(sel.type==="room")afterPlanChange()}
+  else if(a.t==="rot"||a.t==="size")dirty();
+  else if(a.t==="erase")afterPlanChange();
+  else if(a.t==="wall"){if(Math.hypot(a.b.x-a.a.x,a.b.y-a.a.y)>4){pushUndo(true);stampLine(a.a,a.b,Math.max(2,S.wallCm/100*ppm()));afterPlanChange()}}
+  else if(a.t==="scale"){if(Math.hypot(a.b.x-a.a.x,a.b.y-a.a.y)>10){scaleLine={a:a.a,b:a.b};syncToolOpts();setTimeout(()=>{const i=$("#f-scale-m");if(i)i.focus()},50)}}
+  draw()}
+ed.addEventListener("pointerup",endPtr);ed.addEventListener("pointercancel",endPtr);ed.addEventListener("pointerleave",()=>{hover=null;if(tool==="erase")draw()});
+ed.addEventListener("wheel",e=>{e.preventDefault();const c=cpos(e),k=Math.exp(-e.deltaY*0.0015),nz=clamp(V.z*k,0.05,12),px=(c.x-V.ox)/V.z,py=(c.y-V.oy)/V.z;V.z=nz;V.ox=c.x-px*nz;V.oy=c.y-py*nz;draw()},{passive:false});
+const zoomBy=k=>{const cw=ed.width/dpr/2,ch=ed.height/dpr/2,px=(cw-V.ox)/V.z,py=(ch-V.oy)/V.z;V.z=clamp(V.z*k,0.05,12);V.ox=cw-px*V.z;V.oy=ch-py*V.z;draw()};
+$("#z-in").onclick=()=>zoomBy(1.3);$("#z-out").onclick=()=>zoomBy(1/1.3);$("#z-fit").onclick=()=>{fitView();draw()};
+$$("[data-tool]").forEach(b=>b.onclick=()=>{tool=b.dataset.tool;$$("[data-tool]").forEach(x=>x.setAttribute("aria-pressed",x===b));ed.style.cursor=tool==="move"?"default":"crosshair";if(tool!=="scale")scaleLine=null;syncToolOpts();draw()});
+document.addEventListener("keydown",e=>{if(step!==3||!sel)return;if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;
+  if(e.key==="Delete"||e.key==="Backspace"){e.preventDefault();delSel()}});
+
+function syncToolOpts(){const o=$("#tool-opts");o.hidden=tool==="move";o.innerHTML="";
+  if(tool==="erase"){o.innerHTML=`<h3>Radierer</h3><p class="hint">Über alte Beschriftungen, Maßketten oder Flecken wischen.</p><div class="field"><label for="f-brush">Pinselgröße</label><input type="range" id="f-brush" min="6" max="70" value="${S.brush}"></div>`;
+    $("#f-brush").oninput=e=>{S.brush=+e.target.value}}
+  if(tool==="wall"){o.innerHTML=`<h3>Wand zeichnen</h3><p class="hint">Ziehen, um eine fehlende Linie zu ergänzen oder eine Tür zu schließen. Gerade Linien rasten ein.</p><div class="field"><label for="f-wallcm">Wandstärke: <span id="wallv">${S.wallCm}</span> cm</label><input type="range" id="f-wallcm" min="2" max="40" value="${S.wallCm}"></div>`;
+    $("#f-wallcm").oninput=e=>{S.wallCm=+e.target.value;$("#wallv").textContent=S.wallCm}}
+  if(tool==="scale"){if(!scaleLine){o.innerHTML=`<h3>Maßstab festlegen</h3><p class="hint">Ziehe eine Linie entlang einer Wand, deren Länge du kennst (z. B. eine Maßkette). Dann trägst du die Länge ein. Damit stimmen Möbelgrößen und die Flächenberechnung.</p>`}
+    else{const L=Math.hypot(scaleLine.b.x-scaleLine.a.x,scaleLine.b.y-scaleLine.a.y);
+      o.innerHTML=`<h3>Maßstab festlegen</h3><div class="field"><label for="f-scale-m">Länge der Linie in Metern</label><input type="text" inputmode="decimal" id="f-scale-m" placeholder="z. B. 4,25"></div><button class="btn primary" id="scale-ok">Maßstab übernehmen</button>`;
+      $("#scale-ok").onclick=()=>{const m=parseNum($("#f-scale-m").value);if(!m){toast("Bitte eine Länge in Metern eingeben, z. B. 4,25");return}
+        pushUndo();S.pxPerM=L/m;scaleLine=null;afterPlanChange();syncEditorUI();toast("Maßstab gesetzt: 1 m = "+Math.round(S.pxPerM)+" Pixel");$('[data-tool="move"]').click()}}}
+}
+function renderSel(light){const p=$("#sel-panel");if(!sel){p.hidden=true;p.innerHTML="";return}p.hidden=false;
+  if(light&&sel.type==="furn"&&$("#f-fw")){$("#f-fw").value=sel.w;$("#f-fd").value=sel.d;$("#f-frot").value=sel.rot;return}
+  if(sel.type==="room"){
+    p.innerHTML=`<h3>Raum</h3><div class="field"><label for="f-rname">Bezeichnung</label><input type="text" id="f-rname" list="roomlist"></div>
+      <div class="field"><label for="f-rarea">Fläche in m²</label><div class="row" style="flex-wrap:nowrap"><input type="text" inputmode="decimal" id="f-rarea" placeholder="optional, z. B. 18,40"><button class="btn" id="calc-area" title="Aus Maßstab berechnen">≈ berechnen</button></div><small id="area-hint"></small></div>
+      <div class="row"><button class="btn danger" id="del">Entfernen</button></div><datalist id="roomlist">${ROOMS.map(r=>`<option value="${r}">`).join("")}</datalist>`;
+    $("#f-rname").value=sel.name;$("#f-rarea").value=sel.area?String(sel.area).replace(".",","):"";
+    $("#f-rname").oninput=e=>{sel.name=e.target.value;dirty();draw()};
+    $("#f-rname").onchange=()=>{pushUndo();afterPlanChange();draw()};
+    $("#f-rarea").oninput=e=>{sel.area=parseNum(e.target.value);dirty();draw()};
+    const reg=sel._reg;$("#calc-area").disabled=!(reg>=0&&S.regionSize[reg]);
+    $("#area-hint").textContent=!S.pxPerM?"Für „≈ berechnen“ zuerst den Maßstab festlegen (Werkzeug Maßstab).":reg>=0?"Berechnung aus dem Plan ist ein Näherungswert. Bitte prüfen.":"Raum ist nicht geschlossen, Fläche bitte eintippen.";
+    if(!S.pxPerM)$("#calc-area").disabled=true;
+    $("#calc-area").onclick=()=>{const a=Math.round(S.regionSize[sel._reg]/(S.pxPerM*S.pxPerM)*100)/100;sel.area=a;$("#f-rarea").value=String(a).replace(".",",");dirty();draw()};
+  }else{
+    p.innerHTML=`<h3>${FURN[sel.kind][0]}</h3><div class="mini-row"><div class="field"><label for="f-fw">Breite (cm)</label><input type="number" id="f-fw" min="20" max="800" step="5"></div><div class="field"><label for="f-fd">Tiefe (cm)</label><input type="number" id="f-fd" min="20" max="800" step="5"></div></div>
+      <div class="field"><label for="f-frot">Drehung (°)</label><input type="range" id="f-frot" min="0" max="359" step="1"></div>
+      <div class="row"><button class="btn" id="r-l">↺ 90°</button><button class="btn" id="r-r">↻ 90°</button><button class="btn" id="dup">Kopie</button><button class="btn danger" id="del">Entfernen</button></div>`;
+    $("#f-fw").value=sel.w;$("#f-fd").value=sel.d;$("#f-frot").value=sel.rot;
+    $("#f-fw").onchange=e=>{pushUndo();sel.w=clamp(+e.target.value||sel.w,20,800);dirty();draw()};
+    $("#f-fd").onchange=e=>{pushUndo();sel.d=clamp(+e.target.value||sel.d,20,800);dirty();draw()};
+    $("#f-frot").onpointerdown=()=>pushUndo();$("#f-frot").oninput=e=>{sel.rot=+e.target.value;dirty();draw()};
+    $("#r-l").onclick=()=>{pushUndo();sel.rot=(sel.rot+270)%360;renderSel(true);dirty();draw()};
+    $("#r-r").onclick=()=>{pushUndo();sel.rot=(sel.rot+90)%360;renderSel(true);dirty();draw()};
+    $("#dup").onclick=()=>{pushUndo();const c=Object.assign({},sel,{id:nid(),x:sel.x+ppm()*0.4,y:sel.y+ppm()*0.4});S.items.push(c);sel=c;renderSel();dirty();draw()};
+  }
+  $("#del").onclick=delSel}
+function delSel(){if(!sel)return;pushUndo();const wasRoom=sel.type==="room";S.items=S.items.filter(i=>i!==sel);sel=null;renderSel();if(wasRoom)afterPlanChange();else dirty();draw()}
+function viewCenter(){const p=toPlan(ed.width/dpr/2,ed.height/dpr/2);return{x:clamp(p.x,0,S.plan.w),y:clamp(p.y,0,S.plan.h)}}
+function addRoom(name){pushUndo();const c=viewCenter(),it={id:nid(),type:"room",name,area:null,x:c.x,y:c.y};S.items.push(it);sel=it;$('[data-tool="move"]').click();afterPlanChange();renderSel();draw()}
+function addFurn(k){pushUndo();const c=viewCenter(),f=FURN[k],it={id:nid(),type:"furn",kind:k,w:f[1],d:f[2],rot:0,x:c.x,y:c.y};if(k==="teppich")S.items.unshift(it);else S.items.push(it);sel=it;$('[data-tool="move"]').click();dirty();renderSel();draw()}
+function initEditorUI(){
+  ["Wohnen","Schlafen","Kind","Küche","Bad","WC","Flur","Abstellraum","Balkon","Arbeiten","Essen","HWR","Terrasse","Keller"].forEach(n=>{const b=document.createElement("button");b.className="chip";b.textContent="+ "+n;b.onclick=()=>addRoom(n);$("#room-chips").appendChild(b)});
+  const b=document.createElement("button");b.className="chip";b.textContent="+ Eigene …";b.onclick=()=>{addRoom("Raum");setTimeout(()=>{const i=$("#f-rname");if(i){i.focus();i.select()}},30)};$("#room-chips").appendChild(b);
+  Object.entries(FURN).forEach(([k,f])=>{const bt=document.createElement("button");bt.innerHTML=`<canvas width="120" height="88" data-k="${k}"></canvas><span></span>`;bt.querySelector("span").textContent=f[0];bt.onclick=()=>addFurn(k);$("#furn-grid").appendChild(bt)});
+  paintFurnIcons();
+  $("#furn-enable").onclick=()=>{S.meta.furnished=true;saveMeta();$("#f-furn-yes").checked=true;syncEditorUI()};
+  $("#f-fill").onchange=e=>{S.fill=e.target.checked;renderPlan();dirty();draw()};
+  $("#f-fs").oninput=e=>{S.labelScale=+e.target.value/100;dirty();draw()};
+  $("#f-north").onchange=e=>{S.north=e.target.checked;$("#north-rot-f").hidden=!S.north;dirty();draw()};
+  $("#f-north-rot").oninput=e=>{S.northRot=+e.target.value;dirty();draw()};
+}
+function paintFurnIcons(){const d=D();$$("#furn-grid canvas").forEach(c=>{const x=c.getContext("2d"),k=c.dataset.k,f=FURN[k];x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,c.width,c.height);
+  const P=Math.min((c.width-12)/(f[1]/100),(c.height-12)/(f[2]/100));x.translate(c.width/2,c.height/2);drawFurn(x,k,f[1]/100*P,f[2]/100*P,P*1.6,{s:d.furnS==="#1a1a1a"?"#333":d.furnS,f:"#fff",rug:"rgba(0,0,0,.06)"})})}
+function syncEditorUI(){
+  $("#ex-badge").hidden=!S.isExample;$("#furn-off").hidden=S.meta.furnished;$("#furn-grid").hidden=!S.meta.furnished;
+  $("#scale-status").textContent=S.pxPerM?(S.isExample?"Maßstab: aus dem Beispiel bekannt.":"Maßstab festgelegt. Möbel sind in echter Größe."):"Maßstab nicht festgelegt: Möbelgrößen sind geschätzt. Werkzeug „Maßstab“ nutzen für echte Größen.";
+  $("#f-fill").checked=S.fill;$("#f-north").checked=S.north;$("#north-rot-f").hidden=!S.north;
+  $$('input[name=design2]').forEach(i=>i.checked=i.value===S.meta.design);
+}
+
+/* ================= AI room detection ================= */
+sampleP.then(async s=>{if(!s)return;let lim=null;try{lim=await s.limits()}catch(e){}if(!lim||!lim.images)return;$("#ai-box").hidden=false;
+  $("#ai-btn").onclick=async()=>{const st=$("#ai-status"),btn=$("#ai-btn");if(!S.gray)return;btn.disabled=true;st.className="status";st.textContent="Claude sieht sich den Grundriss an … (ca. 20–60 Sekunden)";
+    try{const{w,h}=S.plan,k=Math.min(1,1568/Math.max(w,h)),c=document.createElement("canvas");c.width=Math.round(w*k);c.height=Math.round(h*k);
+      const t=document.createElement("canvas");t.width=w;t.height=h;const tx=t.getContext("2d"),im=tx.createImageData(w,h);for(let i=0;i<w*h;i++){const v=S.gray[i];im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}
+      tx.putImageData(im,0,0);c.getContext("2d").drawImage(t,0,0,c.width,c.height);const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",0.88));
+      const prompt=`Das Bild ist ein abfotografierter, entzerrter Wohnungs-Grundriss (${c.width}x${c.height} Pixel). Erkenne jeden Raum.
+Antworte NUR mit einem JSON-Array, ohne weiteren Text. Format:
+[{"name":"Wohnen","area":24.5,"x":0.42,"y":0.55}]
+- name: kurze deutsche Raumbezeichnung wie im Plan oder passend gewählt (Wohnen, Essen, Wohnen/Essen, Küche, Schlafen, Kind, Arbeiten, Bad, WC, Flur, Diele, Abstellraum, HWR, Ankleide, Balkon, Terrasse, Keller …)
+- area: Fläche in m², NUR wenn sie im Plan lesbar angegeben ist, sonst null
+- x, y: Mittelpunkt der freien Bodenfläche des Raums als Anteil von Bildbreite und Bildhöhe (0 bis 1)`;
+      const res=await s.json(prompt,{images:[blob]});if(!Array.isArray(res)||!res.length)throw{code:"empty"};
+      pushUndo();S.items=S.items.filter(i=>i.type!=="room");
+      res.forEach(r=>{if(!r||typeof r.x!=="number"||typeof r.y!=="number")return;S.items.push({id:nid(),type:"room",name:String(r.name||"Raum").slice(0,40),area:typeof r.area==="number"&&r.area>0?Math.round(r.area*100)/100:null,x:clamp(r.x,0,1)*w,y:clamp(r.y,0,1)*h})});
+      sel=null;renderSel();afterPlanChange();draw();st.textContent=res.length+" Räume erkannt. Bitte Namen, Flächen und Position prüfen.";
+    }catch(e){st.className="status err";st.textContent=e&&e.code==="not_granted"?"Zugriff auf Claude wurde nicht erlaubt. Räume bitte von Hand setzen.":e&&e.code==="rate_limited"?"Gerade zu viele Anfragen. Bitte in einer Minute erneut versuchen.":"Räume konnten nicht erkannt werden. Bitte von Hand setzen.";
+      if(e&&e.code==="not_granted")$("#ai-box").hidden=true}
+    finally{btn.disabled=false}}});
+
+/* ================= Export ================= */
+function contentBBox(){const{w,h,mask}=S.plan;let x0=w,y0=h,x1=0,y1=0;
+  for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2)if(mask[y*w+x]){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+  const t=document.createElement("canvas").getContext("2d");S.items.forEach(it=>{if(it.type==="room")it._bb=roomLayout(t,it).bb;const b=it._bb;if(!b)return;x0=Math.min(x0,b.x);y0=Math.min(y0,b.y);x1=Math.max(x1,b.x+b.w);y1=Math.max(y1,b.y+b.h)});
+  if(x1<=x0||y1<=y0)return{x:0,y:0,w,h};const m=Math.max(w,h)*0.015;x0=Math.max(0,x0-m);y0=Math.max(0,y0-m);x1=Math.min(w,x1+m);y1=Math.min(h,y1+m);return{x:x0,y:y0,w:x1-x0,h:y1-y0}}
+async function renderPage(){
+  await fontsReady;const d=D(),bb=contentBBox(),M=170,HD=330,FT=200;
+  const fit=(W,H)=>Math.min((W-2*M)/bb.w,(H-2*M-HD-FT)/bb.h),land=fit(3508,2480)*1.2>=fit(2480,3508);
+  const W=land?3508:2480,H=land?2480:3508,c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
+  x.fillStyle=d.page;x.fillRect(0,0,W,H);
+  if(S.meta.design==="marine"){x.fillStyle=d.wall;x.fillRect(0,0,34,H)}
+  // header
+  drawLogo(x,M,M+10,160,d.text);
+  x.textAlign="right";x.textBaseline="alphabetic";x.fillStyle=d.text;x.font=`800 104px Manrope, sans-serif`;x.fillText(floorName(),W-M,M+100);
+  x.font=`500 50px Inter, sans-serif`;x.fillStyle=d.muted;x.fillText(S.meta.addr||"",W-M,M+176);
+  if(S.meta.objnr){x.font=`600 38px Inter, sans-serif`;try{x.letterSpacing="4px"}catch(e){}x.fillStyle=d.accent;x.fillText("OBJEKT-NR. "+S.meta.objnr.toUpperCase(),W-M,M+240);try{x.letterSpacing="0px"}catch(e){}}
+  x.fillStyle=d.accent;x.fillRect(M,M+HD-36,W-2*M,S.meta.design==="klassik"?3:6);
+  // plan
+  const aw=W-2*M,ah=H-2*M-HD-FT,s=Math.min(aw/bb.w,ah/bb.h),px=M+(aw-bb.w*s)/2,py=M+HD+(ah-bb.h*s)/2;
+  x.save();x.beginPath();x.rect(M,M+HD-20,aw,ah+40);x.clip();x.translate(px-bb.x*s,py-bb.y*s);x.scale(s,s);
+  x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";
+  // draw only the plan's content box; paper elsewhere is the same as page in all designs
+  x.drawImage(S.planCanvas,0,0);drawItems(x,d);x.restore();
+  if(S.north)drawNorth(x,W-M-80,M+HD+90,150,S.northRot,d.text);
+  // footer
+  const fy=H-M-FT+70;x.fillStyle=d.line||d.muted;x.globalAlpha=0.35;x.fillRect(M,fy,W-2*M,2);x.globalAlpha=1;
+  x.textAlign="left";x.fillStyle=d.text;x.font=`600 40px Inter, sans-serif`;x.fillText([S.meta.objnr?("Objekt "+S.meta.objnr):"",S.meta.addr,floorName()].filter(Boolean).join("  ·  "),M,fy+80);
+  x.font=`400 34px Inter, sans-serif`;x.fillStyle=d.muted;x.fillText("Darstellung nicht maßstabsgetreu. Alle Angaben ohne Gewähr. Möblierung beispielhaft.".replace(S.items.some(i=>i.type==="furn")?"":" Möblierung beispielhaft.",""),M,fy+136);
+  x.textAlign="right";x.font=`600 34px Manrope, sans-serif`;x.fillStyle=d.accent;x.fillText("Schröder Immobilien · "+new Date().toLocaleDateString("de-DE"),W-M,fy+80);
+  return{canvas:c,land};
+}
+const safe=s=>String(s).normalize("NFC").replace(/[^\wäöüÄÖÜß.-]+/g,"_").replace(/^_+|_+$/g,"");
+const baseName=()=>safe("Grundriss_"+(S.meta.objnr||"Objekt")+"_"+floorShort());
+let cache=null;
+async function buildFiles(){
+  if(cache&&cache.v===S.version)return cache;await fontsReady;const{canvas,land}=await renderPage();
+  const jpg=await new Promise(r=>canvas.toBlob(r,"image/jpeg",0.9));let pdf=null;
+  if(window.jspdf){const doc=new window.jspdf.jsPDF({orientation:land?"landscape":"portrait",unit:"mm",format:"a4",compress:true});
+    doc.setProperties({title:"Grundriss "+floorName()+" – "+(S.meta.addr||""),author:"Schröder Immobilien",creator:"Grundriss-Studio"});
+    const buf=new Uint8Array(await jpg.arrayBuffer());doc.addImage(buf,"JPEG",0,0,land?297:210,land?210:297);pdf=doc.output("blob")}
+  cache={v:S.version,jpg,pdf,name:baseName()};return cache}
+async function buildExport(){const st=$("#exp-status");st.textContent="Grundriss wird erstellt …";$("#mailbox").hidden=true;
+  $("#exp-title").textContent=[floorName(),S.meta.addr].filter(Boolean).join(" · ");
+  try{const f=await buildFiles();const img=$("#sheet");if(img.dataset.url)URL.revokeObjectURL(img.dataset.url);const u=URL.createObjectURL(f.jpg);img.dataset.url=u;img.src=u;
+    st.textContent=(S.isExample?"Hinweis: Das ist der Beispielgrundriss. ":"")+(f.pdf?"PDF und JPG sind bereit (A4, 300 dpi).":"JPG ist bereit. PDF-Bibliothek nicht geladen.")}
+  catch(e){st.className="status err";st.textContent="Erstellen fehlgeschlagen. Bitte Seite neu laden und erneut versuchen."}}
+async function saveFile(blob,filename){
+  const dl=await downloadsP;
+  if(dl){try{await dl.save({filename,data:blob});return"saved"}catch(e){if(e&&e.code==="declined")return"declined";if(e&&e.code==="rate_limited")return"busy"}}
+  try{const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);return"saved"}catch(e){return"failed"}}
+const msg={saved:"Gespeichert",declined:"Speichern abgebrochen",busy:"Bitte kurz warten und erneut tippen",failed:"Speichern ist hier nicht möglich"};
+$("#dl-pdf").onclick=async()=>{const f=await buildFiles();if(!f.pdf){toast("PDF nicht verfügbar");return}toast(msg[await saveFile(f.pdf,f.name+".pdf")])};
+$("#dl-jpg").onclick=async()=>{const f=await buildFiles();toast(msg[await saveFile(f.jpg,f.name+".jpg")])};
+$("#send").onclick=async()=>{
+  const f=await buildFiles(),to=S.meta.email,subj=`Grundriss ${S.meta.objnr?"Objekt "+S.meta.objnr+" – ":""}${floorName()}${S.meta.addr?" – "+S.meta.addr:""}`;
+  const body=`Hallo,\n\nanbei der Grundriss ${floorName()}${S.meta.addr?" für "+S.meta.addr:""}${S.meta.objnr?" (Objekt-Nr. "+S.meta.objnr+")":""}.\n\nViele Grüße`;
+  const files=[];if(f.pdf)files.push(new File([f.pdf],f.name+".pdf",{type:"application/pdf"}));files.push(new File([f.jpg],f.name+".jpg",{type:"image/jpeg"}));
+  if(navigator.canShare&&navigator.share){try{if(navigator.canShare({files})){await navigator.share({files,title:subj,text:body});toast("Teilen geöffnet");return}}catch(e){if(e&&e.name==="AbortError")return}}
+  const mb=$("#mailbox");mb.hidden=false;mb.innerHTML=`<b>So geht's weiter</b><p class="hint" id="mb-st">Die Dateien werden gespeichert …</p>`;
+  const r1=f.pdf?await saveFile(f.pdf,f.name+".pdf"):"saved",r2=await saveFile(f.jpg,f.name+".jpg");
+  const href="mailto:"+encodeURIComponent(to||"")+"?subject="+encodeURIComponent(subj)+"&body="+encodeURIComponent(body+"\n\n(Anhänge: "+f.name+".pdf, "+f.name+".jpg)");
+  mb.innerHTML=`<b>${r1==="saved"&&r2==="saved"?"PDF und JPG sind gespeichert.":"Nicht alle Dateien wurden gespeichert."}</b>
+    <ol style="margin:0;padding-left:18px;display:grid;gap:4px"><li>E-Mail öffnen (Button unten).</li><li>Die zwei Dateien aus „Downloads“ anhängen.</li><li>Absenden.</li></ol>
+    <a class="btn primary" target="_blank" rel="noopener" id="mailto">E-Mail öffnen</a>
+    <p class="hint">Falls sich nichts öffnet: an <code></code> mit Betreff <code></code> schreiben.</p>`;
+  mb.querySelector("#mailto").href=href;const cs=mb.querySelectorAll("code");cs[0].textContent=to||"(keine Adresse eingetragen)";cs[1].textContent=subj;
+};
+$("#next-floor").onclick=()=>{S.plan=null;S.items=[];S.gray=null;S.pxPerM=null;tmp=null;photo=null;$("#crop-card").hidden=true;$("#clean-card").hidden=true;undoStack.length=0;sel=null;dirty();
+  go(1);const f=$("#f-floor");f.focus();toast("Etage wählen, dann neues Foto aufnehmen")};
+$("#new-obj").onclick=()=>{Object.assign(S.meta,{objnr:"",addr:"",floor:1,floorOther:""});saveMeta();$("#f-objnr").value="";$("#f-addr").value="";$("#f-floor").value=1;$("#f-floor-other").hidden=true;
+  S.plan=null;S.items=[];S.gray=null;S.pxPerM=null;tmp=null;photo=null;$("#crop-card").hidden=true;$("#clean-card").hidden=true;undoStack.length=0;sel=null;dirty();go(1);$("#f-objnr").focus()};
+
+/* ================= Start ================= */
+initForm();initEditorUI();loadLogo();fontsReady.then(()=>{paintLogoPreviews();$$(".design canvas").forEach((c,i)=>drawDesignThumb(c,Object.values(DESIGNS)[i]))});
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",paintLogoPreviews);
+loadExample();
+</script>
+
+</body></html>
