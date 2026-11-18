@@ -96,7 +96,9 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .editor{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
 @media (max-width:860px){.editor{grid-template-columns:minmax(0,1fr)}}
 .stage{position:relative;background:var(--stage);border-radius:var(--r);overflow:hidden;height:min(72vh,720px);min-height:340px;position:sticky;top:76px}
-@media (max-width:860px){.stage{height:58vh;top:64px;position:relative}}
+@media (max-width:860px){.stage{height:58vh;top:auto;position:relative}}
+.north-row{display:flex;gap:12px;align-items:center}
+.north-row canvas{width:72px;height:72px;flex:none;background:#fff;border-radius:10px;border:1px solid var(--line)}
 #ed{display:block;width:100%;height:100%;touch-action:none;cursor:default}
 .badge{position:absolute;left:10px;top:10px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:600;color:var(--muted)}
 .zoom{position:absolute;right:10px;bottom:10px;display:flex;gap:6px}
@@ -254,7 +256,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         <div class="field"><label for="f-fs">Schriftgröße Räume</label><input type="range" id="f-fs" min="60" max="180" value="100"></div>
         <div class="field" id="wb-field"><label for="f-wb">Wände verstärken</label><input type="range" id="f-wb" min="0" max="8" value="0"><small>Macht dünne Linien aus dem Foto zu kräftigen Wänden.</small></div>
         <label class="check"><input type="checkbox" id="f-north" checked>Kompass anzeigen</label>
-        <div class="field" id="north-rot-f" hidden><label for="f-north-rot">Richtung Norden</label><input type="range" id="f-north-rot" min="0" max="359" value="0"></div>
+        <div class="field" id="north-rot-f" hidden><label for="f-north-rot">Richtung Norden: <span id="northv">0</span>°</label>
+          <div class="north-row"><canvas id="north-prev" width="144" height="144" aria-hidden="true"></canvas>
+            <div style="display:grid;gap:8px;flex:1;min-width:0"><input type="range" id="f-north-rot" min="0" max="359" value="0">
+              <div class="row"><button class="btn" id="n-l" aria-label="15 Grad nach links">↺ 15°</button><button class="btn" id="n-r" aria-label="15 Grad nach rechts">↻ 15°</button></div></div></div>
+          <small>Du kannst den Kompass auch direkt im Plan mit dem Finger drehen.</small></div>
         <p class="status" id="scale-status"></p>
       </div>
       <button class="btn primary big" data-go="4">Weiter: Export</button>
@@ -883,6 +889,7 @@ ed.addEventListener("pointerdown",e=>{
   ed.setPointerCapture(e.pointerId);const c=cpos(e);ptrs.set(e.pointerId,c);
   if(ptrs.size===2){if(act&&act.t==="erase"&&act.undoPushed){afterPlanChange()}act=null;const[a,b]=[...ptrs.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1,cx:(a.x+b.x)/2,cy:(a.y+b.y)/2,z:V.z,ox:V.ox,oy:V.oy};draw();return}
   if(ptrs.size>2)return;const p=toPlan(c.x,c.y);
+  if(S.north&&Math.hypot(c.x-NC.x(),c.y-NC.y)<46){act={t:"north"};return}
   if(tool==="move"){
     if(sel&&sel.type==="furn"){const h=handles();if(Math.hypot(c.x-h.rot.x,c.y-h.rot.y)<22){pushUndo();act={t:"rot"};return}
       if(Math.hypot(c.x-h.size.x,c.y-h.size.y)<22){pushUndo();act={t:"size",w0:sel.w,d0:sel.d};return}}
@@ -908,6 +915,7 @@ ed.addEventListener("pointermove",e=>{const c=cpos(e);hover=c;
     Object.assign(sel,{x1:act.o.x1+dx,y1:act.o.y1+dy,x2:act.o.x2+dx,y2:act.o.y2+dy});act.att.forEach(a=>{a.wl["x"+a.end]=a.x+dx;a.wl["y"+a.end]=a.y+dy})}
   else if(act.t==="wend"){const other=act.end===1?{x:sel.x2,y:sel.y2}:{x:sel.x1,y:sel.y1};const q=snapPt(snap(other,p),sel);sel["x"+act.end]=q.x;sel["y"+act.end]=q.y}
   else if(act.t==="omove"){if(!act.moved){pushUndo();act.moved=true}const wl=S.vec.walls.find(w=>w.id===sel.wall);if(wl){const g=wGeom(wl),wpx=sel.w/100*ppm();sel.pos=clamp((p.x-wl.x1)*g.ux+(p.y-wl.y1)*g.uy,wpx/2,Math.max(wpx/2,g.L-wpx/2))}}
+  else if(act.t==="north"){const a=Math.atan2(c.x-NC.x(),-(c.y-NC.y))*180/Math.PI;setNorth(Math.round(a/5)*5)}
   else if(act.t==="erase")eraseAt(p);
   else if(act.t==="wall"||act.t==="scale")act.b=snap(act.a,p);
   draw()});
@@ -985,15 +993,20 @@ function initEditorUI(){
   $("#furn-enable").onclick=()=>{S.meta.furnished=true;saveMeta();$("#f-furn-yes").checked=true;syncEditorUI()};
   $("#f-fill").onchange=e=>{S.fill=e.target.checked;renderPlan();dirty();draw()};
   $("#f-fs").oninput=e=>{S.labelScale=+e.target.value/100;dirty();draw()};
-  $("#f-north").onchange=e=>{S.north=e.target.checked;$("#north-rot-f").hidden=!S.north;dirty();draw()};
-  $("#f-north-rot").oninput=e=>{S.northRot=+e.target.value;dirty();draw()};
+  $("#f-north").onchange=e=>{S.north=e.target.checked;$("#north-rot-f").hidden=!S.north;paintNorthPrev();dirty();draw()};
+  $("#f-north-rot").oninput=e=>setNorth(+e.target.value);
+  $("#n-l").onclick=()=>setNorth(S.northRot-15);$("#n-r").onclick=()=>setNorth(S.northRot+15);
   $("#f-bg").onchange=e=>{S.showBg=e.target.checked;draw()};
   let vT;const wallSl=(id,key,lab)=>{$(id).oninput=e=>{S[key]=+e.target.value;$(lab).textContent=S[key];dirty();draw();clearTimeout(vT);vT=setTimeout(vecChanged,150)}};wallSl("#f-ext","extCm","#extv");wallSl("#f-int","intCm","#intv");
   let wbT;$("#f-wb").oninput=e=>{S.wallBoost=+e.target.value;clearTimeout(wbT);wbT=setTimeout(()=>{renderPlan();dirty();draw()},80)};
 }
 function paintFurnIcons(){const d=D();$$("#furn-grid canvas").forEach(c=>{const x=c.getContext("2d"),k=c.dataset.k,f=FURN[k];x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,c.width,c.height);
   const P=Math.min((c.width-12)/(f[1]/100),(c.height-12)/(f[2]/100));x.translate(c.width/2,c.height/2);drawFurn(x,k,f[1]/100*P,f[2]/100*P,P*1.6,{p:d.pal,shadow:false})})}
+const NC={x:()=>ed.width/dpr-52,y:56};
+function paintNorthPrev(){const c=$("#north-prev");if(!c)return;const x=c.getContext("2d");x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,c.width,c.height);x.fillStyle="#ffffff";x.fillRect(0,0,c.width,c.height);drawNorth(x,c.width/2,c.height/2,c.width*0.62,S.northRot,D().compass)}
+function setNorth(v){S.northRot=((Math.round(v)%360)+360)%360;$("#f-north-rot").value=S.northRot;$("#northv").textContent=S.northRot;paintNorthPrev();dirty();draw()}
 function syncEditorUI(){
+  $("#f-north-rot").value=S.northRot;$("#northv").textContent=S.northRot;paintNorthPrev();
   $("#ex-badge").hidden=!S.isExample;$("#furn-off").hidden=S.meta.furnished;$("#furn-grid").hidden=!S.meta.furnished;
   $("#scale-status").textContent=S.pxPerM?(S.isExample?"Maßstab: aus dem Beispiel bekannt.":"Maßstab festgelegt. Möbel sind in echter Größe."):"Maßstab nicht festgelegt: Möbelgrößen sind geschätzt. Werkzeug „Maßstab“ nutzen für echte Größen.";
   $("#f-fill").checked=S.fill;$("#f-north").checked=S.north;$("#north-rot-f").hidden=!S.north;
