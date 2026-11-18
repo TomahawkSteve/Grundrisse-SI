@@ -103,7 +103,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .zoom button{width:40px;height:40px;border-radius:9px;border:1px solid var(--line);background:var(--surface);font-size:1.1rem;font-weight:700;cursor:pointer}
 .zoom button.w{width:auto;padding:0 10px;font-size:.8rem}
 .panel{display:grid;gap:12px;min-width:0}
-.tools{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:4px}
+.tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(52px,1fr));gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:4px}
 .tools button{border:0;background:transparent;border-radius:7px;padding:8px 2px;cursor:pointer;display:grid;justify-items:center;gap:3px;font-size:.72rem;font-weight:600;color:var(--muted);min-height:52px}
 .tools button svg{width:20px;height:20px}
 .tools button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
@@ -186,7 +186,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 
 <!-- STEP 2 -->
 <section class="step" id="s2" hidden>
-  <div><h2>Grundriss fotografieren</h2><p class="lead">Fotografiere den Plan möglichst gerade von oben, ohne Schatten. Danach ziehst du die vier Ecken auf die Papierkanten, die App richtet das Bild aus und macht die Linien sauber.</p></div>
+  <div><h2>Grundriss fotografieren</h2><p class="lead">Fotografiere den alten Plan möglichst gerade von oben, ohne Schatten. Ziehe die vier Ecken auf die Papierkanten. Danach zeichnet Claude den Grundriss komplett neu: Wände, Türen, Fenster und Räume.</p></div>
   <div class="photo-pick" id="pick">
     <label class="pick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto aufnehmen<input type="file" accept="image/*" capture="environment" id="f-cam"></label>
     <label class="pick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>Bild aus Galerie / Datei<input type="file" accept="image/*" id="f-file"></label>
@@ -199,13 +199,15 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <div class="row"><button class="btn primary" id="do-warp">Ausrichten &amp; bereinigen</button></div>
   </div>
   <div class="card" id="clean-card" hidden>
-    <h3>2 · Linien bereinigen</h3>
+    <h3>2 · Neu zeichnen</h3>
     <canvas id="cleanprev"></canvas>
     <div class="grid2">
       <div class="field"><label for="f-sens">Linien-Empfindlichkeit</label><input type="range" id="f-sens" min="4" max="40" value="14"><small>Mehr = auch schwache Linien werden übernommen.</small></div>
       <div class="field"><label for="f-clean">Flecken &amp; kleine Schrift entfernen</label><input type="range" id="f-clean" min="0" max="4" value="2"><small>Höher entfernt alte Beschriftungen, aber evtl. auch feine Linien.</small></div>
     </div>
-    <div class="row"><button class="btn primary big" id="commit-plan">Weiter: Beschriften</button></div>
+    <div class="row"><button class="btn primary big" id="ai-redraw" hidden>✦ Grundriss neu zeichnen</button><button class="btn" id="trace">Selbst nachzeichnen</button><button class="btn ghost" id="commit-plan">Nur Foto einfärben</button></div>
+    <p class="status" id="redraw-status"></p>
+    <p class="hint" id="no-ai">Automatisches Neuzeichnen funktioniert im Claude-Link. Hier kannst du den Plan selbst nachzeichnen: Das Foto liegt dabei blass im Hintergrund.</p>
   </div>
 </section>
 
@@ -220,8 +222,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <aside class="panel">
       <div class="tools" role="toolbar" aria-label="Werkzeuge">
         <button data-tool="move" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>Bewegen</button>
-        <button data-tool="erase" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m4 15 9-9 7 7-6 6H8z"/><path d="M9 10l7 7M8 19h12"/></svg>Radierer</button>
+        <button data-tool="erase" aria-pressed="false" data-mode="raster"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m4 15 9-9 7 7-6 6H8z"/><path d="M9 10l7 7M8 19h12"/></svg>Radierer</button>
         <button data-tool="wall" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 20 20 4"/></svg>Wand</button>
+        <button data-tool="door" aria-pressed="false" data-mode="vector"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 20h4M17 20h4M7 20V6"/><path d="M7 6a14 14 0 0 1 10 14" stroke-dasharray="2 2"/></svg>Tür</button>
+        <button data-tool="window" aria-pressed="false" data-mode="vector"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 9h4M18 9h4M2 15h4M18 15h4"/><rect x="6" y="9" width="12" height="6"/><path d="M6 12h12"/></svg>Fenster</button>
         <button data-tool="scale" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9h18v6H3zM7 9v3M11 9v3M15 9v3M19 9v3"/></svg>Maßstab</button>
         <button id="undo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Zurück</button>
       </div>
@@ -242,8 +246,13 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         <h3>Darstellung</h3>
         <div class="seg" id="design-seg" role="radiogroup" aria-label="Designvorlage"></div>
         <label class="check"><input type="checkbox" id="f-fill" checked>Böden einfärben</label>
+        <div id="vec-opts" hidden style="display:grid;gap:8px">
+          <label class="check"><input type="checkbox" id="f-bg">Alte Vorlage durchscheinen lassen</label>
+          <div class="field"><label for="f-ext">Außenwände: <span id="extv">30</span> cm</label><input type="range" id="f-ext" min="17" max="50" value="30"></div>
+          <div class="field"><label for="f-int">Innenwände: <span id="intv">15</span> cm</label><input type="range" id="f-int" min="6" max="30" value="15"></div>
+        </div>
         <div class="field"><label for="f-fs">Schriftgröße Räume</label><input type="range" id="f-fs" min="60" max="180" value="100"></div>
-        <div class="field"><label for="f-wb">Wände verstärken</label><input type="range" id="f-wb" min="0" max="8" value="0"><small>Macht dünne Linien aus dem Foto zu kräftigen Wänden.</small></div>
+        <div class="field" id="wb-field"><label for="f-wb">Wände verstärken</label><input type="range" id="f-wb" min="0" max="8" value="0"><small>Macht dünne Linien aus dem Foto zu kräftigen Wänden.</small></div>
         <label class="check"><input type="checkbox" id="f-north" checked>Kompass anzeigen</label>
         <div class="field" id="north-rot-f" hidden><label for="f-north-rot">Richtung Norden</label><input type="range" id="f-north-rot" min="0" max="359" value="0"></div>
         <p class="status" id="scale-status"></p>
@@ -319,7 +328,7 @@ const FURN={
   couchtisch:["Couchtisch",110,60],esstisch:["Esstisch 4 P.",140,180],rundtisch:["Runder Tisch",150,150],schrank:["Kleiderschrank",200,60],
   kommode:["Kommode",120,45],schreibtisch:["Schreibtisch",140,120],tv:["TV-Board",180,40],kueche:["Küchenzeile",280,60],kuehl:["Kühlschrank",60,65],
   wanne:["Badewanne",170,75],dusche:["Dusche",90,90],wc:["WC",40,65],becken:["Waschbecken",60,45],waschm:["Waschmaschine",60,60],
-  pflanze:["Pflanze",50,50],teppich:["Teppich",200,140]
+  pflanze:["Pflanze",50,50],teppich:["Teppich",200,140],treppe:["Treppe",100,280]
 };
 
 const S={meta:Object.assign({objnr:"",addr:"",floor:1,floorOther:"",furnished:false,design:"schroeder",email:""},store.get("meta",{})),
@@ -515,35 +524,187 @@ function runClean(){if(!tmp)return;tmp.mask=binarize(tmp.gray,tmp.w,tmp.h,+$("#f
   const c=$("#cleanprev");c.width=tmp.w;c.height=tmp.h;const x=c.getContext("2d"),im=x.createImageData(tmp.w,tmp.h);
   for(let i=0;i<tmp.mask.length;i++){const v=tmp.mask[i]?20:255;im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}x.putImageData(im,0,0)}
 let cleanT;["#f-sens","#f-clean"].forEach(s=>$(s).addEventListener("input",()=>{clearTimeout(cleanT);cleanT=setTimeout(runClean,120)}));
-$("#commit-plan").onclick=()=>{if(!tmp)return;S.plan={w:tmp.w,h:tmp.h,mask:tmp.mask};S.gray=tmp.gray;S.items=[];S.pxPerM=null;S.isExample=false;undoStack.length=0;sel=null;
+$("#commit-plan").onclick=()=>{if(!tmp)return;S.mode="raster";S.vec=null;S.bgCanvas=null;S.plan={w:tmp.w,h:tmp.h,mask:tmp.mask};S.gray=tmp.gray;S.items=[];S.pxPerM=null;S.isExample=false;undoStack.length=0;sel=null;
   afterPlanChange();go(3);toast("Grundriss übernommen. Jetzt Räume beschriften.")};
 $("#use-example").onclick=()=>{loadExample();go(3)};
+$("#trace").onclick=()=>{if(!tmp)return;commitVector(tmp,grayCanvas(tmp.gray,tmp.w,tmp.h),{walls:[],openings:[],rooms:[],widthM:null,bboxW:0});go(3);
+  const wb=$('[data-tool="wall"]');if(wb)wb.click();toast("Wände entlang der Vorlage ziehen")};
+sampleP.then(async s=>{if(!s)return;let lim=null;try{lim=await s.limits()}catch(e){}if(!lim||!lim.images)return;
+  $("#ai-redraw").hidden=false;$("#no-ai").hidden=true;$("#trace").classList.add("ghost");
+  $("#ai-redraw").onclick=async()=>{if(!tmp)return;const btn=$("#ai-redraw"),st=$("#redraw-status");btn.disabled=true;st.className="status";
+    st.textContent="Claude zeichnet den Grundriss neu … das dauert meist 1–2 Minuten. Bitte die Seite offen lassen.";
+    try{const src=tmp,bg=grayCanvas(src.gray,src.w,src.h),k=Math.min(1,1568/Math.max(src.w,src.h)),c=document.createElement("canvas");c.width=Math.round(src.w*k);c.height=Math.round(src.h*k);
+      c.getContext("2d").drawImage(bg,0,0,c.width,c.height);const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",0.9));
+      const tiers=lim.modelTiers,tier=!tiers||tiers.includes("complex")?"complex":"default";let js;
+      try{js=await s.json(REDRAW_PROMPT(c.width,c.height),{images:[blob],modelTier:tier})}
+      catch(e){if(tier==="complex"&&e&&!["not_granted","rate_limited","cancelled","images_unavailable"].includes(e.code)){st.textContent="Zweiter Versuch …";js=await s.json(REDRAW_PROMPT(c.width,c.height),{images:[blob],modelTier:"default"})}else throw e}
+      const res=buildVector(js,src.w,src.h,src.gray);if(!res.walls.length)throw{code:"empty"};
+      commitVector(src,bg,res);go(3);st.textContent="";
+      toast(res.walls.length+" Wände, "+res.openings.length+" Türen/Fenster, "+res.rooms.length+" Räume erkannt. Bitte prüfen.");
+    }catch(e){st.className="status err";st.textContent=e&&e.code==="not_granted"?"Zugriff auf Claude wurde nicht erlaubt. Du kannst den Plan selbst nachzeichnen.":
+      e&&e.code==="rate_limited"?"Dein Claude-Kontingent ist gerade ausgeschöpft. Bitte später erneut versuchen oder selbst nachzeichnen.":
+      e&&e.code==="empty"?"Im Foto wurden keine Wände erkannt. Ecken enger an den Plan ziehen oder ein schärferes Foto nehmen.":
+      "Das Neuzeichnen hat nicht geklappt. Bitte erneut versuchen oder selbst nachzeichnen."}
+    finally{btn.disabled=false}}});
 
 /* ================= Example plan ================= */
 function loadExample(){
-  const W=1600,H=1240,c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
-  x.fillStyle="#fff";x.fillRect(0,0,W,H);x.fillStyle="#000";x.strokeStyle="#000";
-  const T=18,t=10,hw=(x1,x2,y,th)=>x.fillRect(x1-th/2,y-th/2,x2-x1+th,th),vw=(y1,y2,X,th)=>x.fillRect(X-th/2,y1-th/2,th,y2-y1+th);
-  hw(100,1500,100,T);hw(100,1500,1000,T);vw(100,1000,100,T);vw(100,1000,1500,T);
-  hw(100,1500,430,t);hw(100,1180,560,t);vw(100,430,560,t);vw(100,430,820,t);vw(100,430,1180,t);vw(430,1000,1180,t);
-  const clear=(x0,y0,w,h)=>{x.fillStyle="#fff";x.fillRect(x0,y0,w,h);x.fillStyle="#000"};
-  const doorH=(x0,y,dir)=>{clear(x0,y-8,90,16);x.lineWidth=3;x.beginPath();x.moveTo(x0,y);x.lineTo(x0,y+90*dir);x.stroke();
-    x.lineWidth=2;x.beginPath();dir>0?x.arc(x0,y,90,0,Math.PI/2):x.arc(x0,y,90,-Math.PI/2,0);x.stroke()};
-  const doorV=(X,y0,dir)=>{clear(X-8,y0,16,90);x.lineWidth=3;x.beginPath();x.moveTo(X,y0);x.lineTo(X+90*dir,y0);x.stroke();
-    x.lineWidth=2;x.beginPath();dir>0?x.arc(X,y0,90,0,Math.PI/2):x.arc(X,y0,90,Math.PI/2,Math.PI);x.stroke()};
-  doorH(300,430,-1);doorH(600,430,-1);doorH(900,430,-1);doorH(1250,430,-1);doorH(560,560,1);doorV(1180,450,1);doorV(100,450,1);
-  const win=(x0,y,w,horiz)=>{if(horiz){clear(x0,y-T/2-1,w,T+2);x.fillRect(x0,y-T/2,w,2.5);x.fillRect(x0,y+T/2-2.5,w,2.5);x.fillRect(x0,y-1,w,2);x.fillRect(x0,y-T/2,3,T);x.fillRect(x0+w-3,y-T/2,3,T)}
-    else{clear(y-T/2-1,x0,T+2,w);x.fillRect(y-T/2,x0,2.5,w);x.fillRect(y+T/2-2.5,x0,2.5,w);x.fillRect(y-1,x0,2,w);x.fillRect(y-T/2,x0,T,3);x.fillRect(y-T/2,x0+w-3,T,3)}};
-  win(220,100,220,true);win(630,100,120,true);win(920,100,180,true);win(1260,100,160,true);win(250,1000,180,true);win(700,1000,220,true);win(1260,1000,160,true);win(620,1500,220,false);
-  x.fillRect(300,1000,6,190);x.fillRect(300,1184,600,6);x.fillRect(894,1000,6,190);
-  const d=x.getImageData(0,0,W,H).data,m=new Uint8Array(W*H),g=new Uint8Array(W*H);
-  for(let i=0;i<W*H;i++){g[i]=d[i*4];m[i]=d[i*4]<128?1:0}
-  S.plan={w:W,h:H,mask:m};S.gray=g;S.pxPerM=100;S.isExample=true;undoStack.length=0;sel=null;
+  const W=1600,H=1240;S.plan={w:W,h:H,mask:new Uint8Array(W*H)};S.gray=null;S.bgCanvas=null;S.mode="vector";S.pxPerM=100;S.isExample=true;undoStack.length=0;sel=null;S.showBg=false;
+  const wl=(x1,y1,x2,y2,kind)=>({id:nid(),type:"wall",x1,y1,x2,y2,kind});
+  const top=wl(100,100,1500,100,"ext"),bot=wl(100,1000,1500,1000,"ext"),lef=wl(100,100,100,1000,"ext"),rig=wl(1500,100,1500,1000,"ext"),
+    mid=wl(100,430,1500,430,"int"),flur=wl(100,560,1180,560,"int"),v1=wl(560,100,560,430,"int"),v2=wl(820,100,820,430,"int"),v3=wl(1180,100,1180,430,"int"),v4=wl(1180,430,1180,1000,"int"),
+    b1=wl(300,1000,300,1190,"rail"),b2=wl(300,1190,900,1190,"rail"),b3=wl(900,1000,900,1190,"rail");
+  const op=(w,type,pos,width,hinge,side)=>({id:nid(),type,wall:w.id,pos,w:width,hinge,side});
+  S.vec={walls:[top,bot,lef,rig,mid,flur,v1,v2,v3,v4,b1,b2,b3],openings:[
+    op(mid,"door",245,88,0,-1),op(mid,"door",545,88,0,-1),op(mid,"door",845,88,1,-1),op(mid,"door",1195,88,0,-1),
+    op(flur,"door",505,88,0,1),op(v4,"door",65,88,0,-1),op(lef,"door",395,100,0,-1),op(bot,"door",500,100,0,-1),
+    op(top,"window",230,180,0,1),op(top,"window",590,100,0,1),op(top,"window",900,160,0,1),op(top,"window",1240,160,0,1),
+    op(bot,"window",240,160,0,1),op(bot,"window",700,160,0,1),op(bot,"window",1240,160,0,1),op(rig,"window",630,160,0,1)]};
   S.items=[["Schlafen",15.18,330,265],["Bad",8.58,690,265],["Kind",11.88,1000,265],["Arbeiten",10.56,1340,265],["Flur",14.04,820,495],
     ["Wohnen/Essen",47.52,640,780],["Küche",18.24,1340,715],["Balkon",4.5,600,1095]].map(r=>({id:nid(),type:"room",name:r[0],area:r[1],x:r[2],y:r[3]}));
-  afterPlanChange();
+  vecRaster();afterPlanChange();
 }
 
+/* ================= Vector plan (Neuzeichnung) ================= */
+S.mode="vector";S.vec=null;S.extCm=30;S.intCm=15;S.showBg=false;S.bgCanvas=null;
+const VC={leaf:"#b47b45",leafEdge:"#6e4a28",arc:"rgba(35,35,35,.7)",glass:"#dcf6f9",glassEdge:"#8fbfc6"};
+function wallT(wl){const c=wl.kind==="ext"?S.extCm:wl.kind==="rail"?6:S.intCm;return Math.max(1.5,c/100*ppm())}
+function maxWallT(){return S.vec&&S.vec.walls.length?Math.max(...S.vec.walls.map(wallT)):10}
+function wGeom(wl){const dx=wl.x2-wl.x1,dy=wl.y2-wl.y1,L=Math.hypot(dx,dy)||1;return{L,ux:dx/L,uy:dy/L,nx:-dy/L,ny:dx/L}}
+function segDist(p,wl){const g=wGeom(wl),t=clamp((p.x-wl.x1)*g.ux+(p.y-wl.y1)*g.uy,0,g.L);return{d:Math.hypot(wl.x1+g.ux*t-p.x,wl.y1+g.uy*t-p.y),t}}
+function opGeom(o){const wl=S.vec&&S.vec.walls.find(w=>w.id===o.wall);if(!wl)return null;const g=wGeom(wl),wpx=o.w/100*ppm(),c={x:wl.x1+g.ux*o.pos,y:wl.y1+g.uy*o.pos};
+  return{wl,g,wpx,c,a:{x:c.x-g.ux*wpx/2,y:c.y-g.uy*wpx/2},b:{x:c.x+g.ux*wpx/2,y:c.y+g.uy*wpx/2},t:wallT(wl)}}
+function jointAt(wl,x,y){return S.vec.walls.some(o=>o!==wl&&segDist({x,y},o).d<=wallT(o)/2+1)}
+function clampOpenings(wl){const g=wGeom(wl);S.vec.openings.forEach(o=>{if(o.wall!==wl.id)return;const wpx=o.w/100*ppm();o.pos=clamp(o.pos,wpx/2,Math.max(wpx/2,g.L-wpx/2))})}
+function drawVector(x,d){
+  if(S.mode!=="vector"||!S.vec)return;const P=ppm(),sw=S.meta.design==="sw";x.save();x.lineCap="butt";x.lineJoin="miter";
+  for(const wl of S.vec.walls){const g=wGeom(wl),t=wallT(wl);
+    const ops=S.vec.openings.filter(o=>o.wall===wl.id).map(o=>{const w=o.w/100*P;return[o.pos-w/2,o.pos+w/2]}).sort((a,b)=>a[0]-b[0]);
+    const segs=[];let s0=0;for(const[a,b]of ops){if(a>s0)segs.push([s0,a]);s0=Math.max(s0,b)}if(s0<g.L)segs.push([s0,g.L]);
+    x.strokeStyle=d.wall;x.fillStyle=d.wall;x.lineWidth=t;x.beginPath();for(const[a,b]of segs){x.moveTo(wl.x1+g.ux*a,wl.y1+g.uy*a);x.lineTo(wl.x1+g.ux*b,wl.y1+g.uy*b)}x.stroke();
+    [[wl.x1,wl.y1,0],[wl.x2,wl.y2,g.L]].forEach(([px,py,at])=>{if(ops.some(([a,b])=>at>a-0.5&&at<b+0.5))return;if(jointAt(wl,px,py)){x.save();x.translate(px,py);x.rotate(Math.atan2(g.uy,g.ux));x.fillRect(-t/2,-t/2,t,t);x.restore()}});
+  }
+  for(const o of S.vec.openings){const G=opGeom(o);if(!G)continue;const{g,wpx,a,b,t,c}=G,ang=Math.atan2(g.uy,g.ux);
+    if(o.type==="window"){x.save();x.translate(c.x,c.y);x.rotate(ang);x.fillStyle=d.paper;x.fillRect(-wpx/2,-t/2,wpx,t);
+      x.lineWidth=Math.max(1,P*0.012);x.strokeStyle=d.wall;x.strokeRect(-wpx/2,-t/2,wpx,t);
+      const gi=Math.min(t*0.45,P*0.09),ge=Math.min(P*0.03,wpx*0.1);x.fillStyle=sw?"#ffffff":VC.glass;x.strokeStyle=sw?d.wall:VC.glassEdge;x.fillRect(-wpx/2+ge,-gi/2,wpx-2*ge,gi);x.strokeRect(-wpx/2+ge,-gi/2,wpx-2*ge,gi);x.restore()}
+    else if(o.type==="door"){const s=o.side||1,h=o.hinge?b:a,ot=o.hinge?a:b,hf={x:h.x+g.nx*s*t/2,y:h.y+g.ny*s*t/2},of={x:ot.x+g.nx*s*t/2,y:ot.y+g.ny*s*t/2},tip={x:hf.x+g.nx*s*wpx,y:hf.y+g.ny*s*wpx};
+      const a1=Math.atan2(tip.y-hf.y,tip.x-hf.x),a2=Math.atan2(of.y-hf.y,of.x-hf.x);let df=a2-a1;while(df>Math.PI)df-=2*Math.PI;while(df<-Math.PI)df+=2*Math.PI;
+      x.save();x.setLineDash([P*0.035,P*0.035]);x.lineWidth=Math.max(0.8,P*0.01);x.strokeStyle=VC.arc;x.beginPath();x.arc(hf.x,hf.y,wpx,a1,a2,df<0);x.stroke();x.setLineDash([]);
+      x.lineCap="butt";x.strokeStyle=sw?d.wall:VC.leafEdge;x.lineWidth=P*0.055;x.beginPath();x.moveTo(hf.x,hf.y);x.lineTo(tip.x,tip.y);x.stroke();
+      x.strokeStyle=sw?"#ffffff":VC.leaf;x.lineWidth=P*0.032;x.beginPath();x.moveTo(hf.x+g.nx*s*P*0.01,hf.y+g.ny*s*P*0.01);x.lineTo(tip.x-g.nx*s*P*0.01,tip.y-g.ny*s*P*0.01);x.stroke();x.restore()}
+  }
+  x.restore()}
+function vecRaster(){if(!S.vec||!S.plan)return;const{w,h}=S.plan,c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d",{willReadFrequently:true});
+  x.fillStyle="#fff";x.fillRect(0,0,w,h);x.strokeStyle="#000";x.lineCap="square";
+  for(const wl of S.vec.walls){x.lineWidth=Math.max(2,wallT(wl));x.beginPath();x.moveTo(wl.x1,wl.y1);x.lineTo(wl.x2,wl.y2);x.stroke()}
+  const rd=()=>{const dd=x.getImageData(0,0,w,h).data,m=new Uint8Array(w*h);for(let i=0;i<w*h;i++)m[i]=dd[i*4]<128?1:0;return m};
+  const full=rd();x.fillStyle="#fff";
+  for(const o of S.vec.openings){if(o.type==="window")continue;const G=opGeom(o);if(!G)continue;x.save();x.translate(G.c.x,G.c.y);x.rotate(Math.atan2(G.g.uy,G.g.ux));x.fillRect(-G.wpx/2,-G.t/2-1,G.wpx,G.t+2);x.restore()}
+  S.plan.fillMask=full;S.plan.mask=rd()}
+function vecChanged(){vecRaster();afterPlanChange();draw()}
+function hitVec(p){if(S.mode!=="vector"||!S.vec)return null;const pad=10/V.z;
+  for(const o of S.vec.openings){const G=opGeom(o);if(!G)continue;const dx=p.x-G.c.x,dy=p.y-G.c.y,al=dx*G.g.ux+dy*G.g.uy,ac=dx*G.g.nx+dy*G.g.ny;if(Math.abs(al)<=G.wpx/2&&Math.abs(ac)<=G.t/2+pad)return o}
+  let best=null,bd=1e9;for(const wl of S.vec.walls){const r=segDist(p,wl);if(r.d<=wallT(wl)/2+pad&&r.d<bd){bd=r.d;best=wl}}return best}
+function hitWall(p){if(!S.vec)return null;let best=null,bd=1e9;for(const wl of S.vec.walls){const r=segDist(p,wl);if(r.d<=wallT(wl)/2+16/V.z&&r.d<bd){bd=r.d;best=wl}}return best}
+function attachedEnds(v){const out=[];S.vec.walls.forEach(o=>{if(o===v)return;[1,2].forEach(e=>{if(segDist({x:o["x"+e],y:o["y"+e]},v).d<=wallT(v)/2+2)out.push({wl:o,end:e,x:o["x"+e],y:o["y"+e]})})});return out}
+function snapPt(p,excl){if(!S.vec)return p;const tol=14/V.z;let best=null,bd=tol;
+  for(const wl of S.vec.walls){if(wl===excl)continue;for(const e of[[wl.x1,wl.y1],[wl.x2,wl.y2]]){const d=Math.hypot(e[0]-p.x,e[1]-p.y);if(d<bd){bd=d;best={x:e[0],y:e[1]}}}}
+  if(best)return best;
+  for(const wl of S.vec.walls){if(wl===excl)continue;const r=segDist(p,wl);if(r.d<tol){const g=wGeom(wl);return{x:wl.x1+g.ux*r.t,y:wl.y1+g.uy*r.t}}}
+  return p}
+function wallHandles(wl){return{1:{x:V.ox+wl.x1*V.z,y:V.oy+wl.y1*V.z},2:{x:V.ox+wl.x2*V.z,y:V.oy+wl.y2*V.z}}}
+function addOpening(wl,kind,p){const g=wGeom(wl),wcm=kind==="door"?88:120,wpx=wcm/100*ppm();if(g.L<wpx+2){toast("Die Wand ist zu kurz dafür");undoStack.pop();return}
+  const pos=clamp((p.x-wl.x1)*g.ux+(p.y-wl.y1)*g.uy,wpx/2,g.L-wpx/2),o={id:nid(),type:kind,wall:wl.id,pos,w:wcm,hinge:0,side:1};S.vec.openings.push(o);sel=o;
+  const mb=$('[data-tool="move"]');if(mb)mb.click();renderSel();vecChanged()}
+function drawVecSel(x){if(!sel||S.mode!=="vector")return;x.save();x.strokeStyle="#2f7fe0";x.lineWidth=2/V.z;x.setLineDash([6/V.z,4/V.z]);const k=3/V.z;
+  if(sel.type==="wall"){const g=wGeom(sel),t=wallT(sel);x.translate(sel.x1,sel.y1);x.rotate(Math.atan2(g.uy,g.ux));x.strokeRect(-k,-t/2-k,g.L+2*k,t+2*k)}
+  else if(["door","window","pass"].includes(sel.type)){const G=opGeom(sel);if(G){x.translate(G.c.x,G.c.y);x.rotate(Math.atan2(G.g.uy,G.g.ux));const ex=sel.type==="door"?G.wpx:0,up=(sel.side||1)<0;x.strokeRect(-G.wpx/2-k,-G.t/2-k-(up?ex:0),G.wpx+2*k,G.t+2*k+ex)}}
+  x.restore()}
+function renderVecSel(p){const P=ppm();
+  if(sel.type==="wall"){const g=wGeom(sel);
+    p.innerHTML=`<h3>Wand</h3><div class="seg" role="radiogroup" aria-label="Wandart"><label><input type="radio" name="wk" value="ext"><span>Außenwand</span></label><label><input type="radio" name="wk" value="int"><span>Innenwand</span></label><label><input type="radio" name="wk" value="rail"><span>Brüstung</span></label></div>
+      <p class="hint">Länge ca. ${(g.L/P).toLocaleString("de-DE",{maximumFractionDigits:2})} m. Enden an den Kreisen ziehen, die Wand selbst zum Verschieben ziehen.</p>
+      <div class="row"><button class="btn" id="w-door">+ Tür</button><button class="btn" id="w-win">+ Fenster</button><button class="btn danger" id="del">Entfernen</button></div>`;
+    $$('input[name=wk]').forEach(i=>{i.checked=i.value===sel.kind;i.onchange=()=>{pushUndo();sel.kind=i.value;vecChanged()}});
+    const mid={x:(sel.x1+sel.x2)/2,y:(sel.y1+sel.y2)/2};$("#w-door").onclick=()=>{pushUndo();addOpening(sel,"door",mid)};$("#w-win").onclick=()=>{pushUndo();addOpening(sel,"window",mid)};
+  }else{
+    p.innerHTML=`<h3>${sel.type==="window"?"Fenster":sel.type==="door"?"Tür":"Durchgang"}</h3><div class="field"><label for="f-ow">Breite (cm)</label><input type="number" id="f-ow" min="40" max="500" step="5"></div>
+      ${sel.type==="door"?'<div class="row"><button class="btn" id="o-hinge">Anschlag wechseln</button><button class="btn" id="o-side">Aufschlag wechseln</button></div>':""}
+      ${sel.type!=="window"?`<button class="btn" id="o-type">${sel.type==="door"?"Zu Durchgang ohne Tür machen":"Zu Tür machen"}</button>`:""}
+      <p class="hint">Zum Verschieben entlang der Wand ziehen.</p><div class="row"><button class="btn danger" id="del">Entfernen</button></div>`;
+    $("#f-ow").value=sel.w;$("#f-ow").onchange=e=>{pushUndo();sel.w=clamp(+e.target.value||sel.w,40,500);const wl=S.vec.walls.find(w=>w.id===sel.wall);if(wl)clampOpenings(wl);vecChanged()};
+    if($("#o-hinge")){$("#o-hinge").onclick=()=>{pushUndo();sel.hinge=sel.hinge?0:1;dirty();draw()};$("#o-side").onclick=()=>{pushUndo();sel.side=-(sel.side||1);dirty();draw()}}
+    if($("#o-type"))$("#o-type").onclick=()=>{pushUndo();sel.type=sel.type==="door"?"pass":"door";renderSel();vecChanged()};
+  }
+  $("#del").onclick=delSel}
+
+/* ---- Erkennung: Foto -> Vektorplan ---- */
+function grayCanvas(g,w,h){const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d"),im=x.createImageData(w,h);for(let i=0;i<w*h;i++){const v=g[i];im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}x.putImageData(im,0,0);return c}
+const REDRAW_PROMPT=(W,H)=>`Du bekommst das Foto eines alten Wohnungs-Grundrisses (z. B. aus einer Bauakte, meist schwarz-weiß, unmöbliert). Bildgröße ${W}x${H} Pixel.
+Zeichne den Grundriss als Vektordaten nach. Koordinaten: x und y als Zahlen von 0 bis 1000, relativ zu Bildbreite bzw. Bildhöhe (0,0 = oben links).
+Antworte NUR mit einem JSON-Objekt in genau diesem Format, ohne weiteren Text:
+{"walls":[{"x1":120,"y1":80,"x2":880,"y2":80,"type":"exterior"}],
+ "doors":[{"x":300,"y":412,"width":45,"hinge":"start","swing_x":310,"swing_y":450}],
+ "windows":[{"x":500,"y":80,"width":60}],
+ "rooms":[{"name":"Wohnen","area":24.5,"x":420,"y":560}],
+ "width_m":11.5}
+Regeln:
+- walls: Mittellinie jeder Wand von Ende zu Ende. Wände sind fast immer exakt waagerecht oder senkrecht. Eine durchgehende Wand ist EIN Eintrag, auch wenn Türen oder Fenster darin sind. Wandenden treffen sich genau an Ecken und T-Stößen (gleiche Koordinaten). type: "exterior" für Außenwände, "interior" für Innenwände. Maßketten, Maßzahlen, Schraffuren, Treppenlinien, Möbel, Achsen und Beschriftungen sind KEINE Wände.
+- doors: Mittelpunkt der Türöffnung auf der Wand. width = Öffnungsbreite in derselben 0-1000-Skala entlang der Wand (bei waagerechten Wänden bezogen auf die Bildbreite, bei senkrechten auf die Bildhöhe). hinge = Seite des Türbands: "start" (kleinere Koordinate) oder "end". swing_x/swing_y = ein Punkt im Raum, in den die Tür aufschlägt (dort wo der Türbogen ist). Offene Durchgänge ohne Türblatt: hinge "none".
+- windows: Mittelpunkt und Breite wie bei Türen. Fenster sitzen fast immer in Außenwänden.
+- rooms: jeder Raum mit Name wie im Plan, ausgeschrieben (Wohnen, Essen, Wohnen/Essen, Küche, Schlafen, Kind, Arbeiten, Bad, WC, Dusche, Flur, Diele, Abstellraum, HWR, Speisekammer, Balkon, Terrasse, Loggia …). area = Fläche in m² nur wenn im Plan lesbar, sonst null. x/y = Mitte der freien Bodenfläche.
+- width_m = Außenbreite des Gebäudes (links-rechts) in Metern, wenn aus Maßketten lesbar, sonst null.
+Sei bei den Koordinaten so genau wie möglich.`;
+function buildVector(js,W,H,gray){
+  const dim=Math.max(W,H),X=v=>clamp(+v||0,0,1000)/1000*W,Y=v=>clamp(+v||0,0,1000)/1000*H;
+  let walls=(Array.isArray(js&&js.walls)?js.walls:[]).filter(o=>o&&[o.x1,o.y1,o.x2,o.y2].every(v=>isFinite(+v)))
+    .map(o=>({x1:X(o.x1),y1:Y(o.y1),x2:X(o.x2),y2:Y(o.y2),kind:/ext|außen|aussen/i.test(String(o.type||""))?"ext":"int"})).filter(o=>Math.hypot(o.x2-o.x1,o.y2-o.y1)>dim*0.012);
+  walls.forEach(o=>{const dx=Math.abs(o.x2-o.x1),dy=Math.abs(o.y2-o.y1);
+    if(dy<=dx*0.2){const y=(o.y1+o.y2)/2;o.y1=o.y2=y;if(o.x1>o.x2)[o.x1,o.x2]=[o.x2,o.x1];o.o="h"}
+    else if(dx<=dy*0.2){const x=(o.x1+o.x2)/2;o.x1=o.x2=x;if(o.y1>o.y2)[o.y1,o.y2]=[o.y2,o.y1];o.o="v"}else o.o="d"});
+  // an den dunklen Linien des Fotos ausrichten
+  if(gray){const m=binarize(gray,W,H,0.14,2),R=Math.max(3,Math.round(dim*0.016));
+    walls.forEach(o=>{if(o.o==="d")return;const hz=o.o==="h",c0=Math.round(hz?o.y1:o.x1),a=Math.round(hz?o.x1:o.y1),b=Math.round(hz?o.x2:o.y2),prof=[];let n=0;
+      for(let k=-R;k<=R;k++){const cc=c0+k;let sm=0;n=0;if(cc>=0&&cc<(hz?H:W))for(let u=Math.max(0,a);u<=Math.min(b,(hz?W:H)-1);u+=2){n++;sm+=hz?m[cc*W+u]:m[u*W+cc]}prof.push(sm)}
+      const mx=Math.max(...prof);if(!n||mx<n*0.3)return;let sw=0,sp=0;prof.forEach((v,i)=>{if(v>=mx*0.55){sw+=v;sp+=v*(i-R)}});const nc=c0+sp/sw;if(hz)o.y1=o.y2=nc;else o.x1=o.x2=nc})}
+  const tolC=dim*0.007,tolE=dim*0.03;
+  const clus=(arr,get,set)=>{arr.sort((p,q)=>get(p)-get(q));let g=[];const flush=()=>{if(!g.length)return;const v=g.reduce((t,o)=>t+get(o),0)/g.length;g.forEach(o=>set(o,v));g=[]};
+    arr.forEach(o=>{if(g.length&&get(o)-get(g[g.length-1])>tolC)flush();g.push(o)});flush()};
+  let hs=walls.filter(o=>o.o==="h"),vs=walls.filter(o=>o.o==="v");
+  clus(hs,o=>o.y1,(o,v)=>{o.y1=o.y2=v});clus(vs,o=>o.x1,(o,v)=>{o.x1=o.x2=v});
+  const snapEnds=(A,B,hz)=>A.forEach(o=>[1,2].forEach(e=>{const ex=o["x"+e],ey=o["y"+e];let best=null,bd=tolE;
+    B.forEach(q=>{if(hz){const d=Math.abs(q.x1-ex);if(d<bd&&ey>=q.y1-tolE&&ey<=q.y2+tolE){bd=d;best=q}}else{const d=Math.abs(q.y1-ey);if(d<bd&&ex>=q.x1-tolE&&ex<=q.x2+tolE){bd=d;best=q}}});
+    if(best){if(hz){o["x"+e]=best.x1;if(ey<best.y1)best.y1=ey;if(ey>best.y2)best.y2=ey}else{o["y"+e]=best.y1;if(ex<best.x1)best.x1=ex;if(ex>best.x2)best.x2=ex}}}));
+  snapEnds(hs,vs,true);snapEnds(vs,hs,false);
+  const opPts=[...((js&&js.doors)||[]),...((js&&js.windows)||[])].filter(o=>o&&isFinite(+o.x)&&isFinite(+o.y)).map(o=>({x:X(o.x),y:Y(o.y)}));
+  const merge=(arr,hz)=>{const out=[];arr.sort((p,q)=>hz?(p.y1-q.y1)||(p.x1-q.x1):(p.x1-q.x1)||(p.y1-q.y1));
+    arr.forEach(o=>{const l=out[out.length-1];const same=l&&(hz?Math.abs(l.y1-o.y1)<0.5:Math.abs(l.x1-o.x1)<0.5);
+      const gapA=l&&(hz?l.x2:l.y2),gapB=hz?o.x1:o.y1,line=hz?o.y1:o.x1;
+      const bridge=same&&(gapB<=gapA+tolC||(gapB-gapA<dim*0.12&&opPts.some(p=>Math.abs((hz?p.y:p.x)-line)<tolE&&(hz?p.x:p.y)>gapA-tolC&&(hz?p.x:p.y)<gapB+tolC)));
+      if(bridge){if(hz)l.x2=Math.max(l.x2,o.x2);else l.y2=Math.max(l.y2,o.y2);if(o.kind==="ext")l.kind="ext"}else out.push(o)});return out};
+  walls=[...merge(hs,true),...merge(vs,false),...walls.filter(o=>o.o==="d")].filter(o=>Math.hypot(o.x2-o.x1,o.y2-o.y1)>dim*0.008);
+  walls.forEach(o=>{o.id=nid();o.type="wall";delete o.o});
+  const openings=[];
+  const pts=[...((js&&js.doors)||[]).map(o=>Object.assign({},o,{_k:String(o.hinge)==="none"?"pass":"door"})),...((js&&js.windows)||[]).map(o=>Object.assign({},o,{_k:"window"}))];
+  pts.forEach(o=>{if(!o||!isFinite(+o.x)||!isFinite(+o.y))return;const p={x:X(o.x),y:Y(o.y)};let best=null,bd=dim*0.035,bt=0;
+    walls.forEach(wl=>{const r=segDist(p,wl);if(r.d<bd){bd=r.d;best=wl;bt=r.t}});if(!best)return;
+    const g=wGeom(best),hz=Math.abs(g.ux)>=Math.abs(g.uy),wpx=clamp(+o.width||0,0,400)/1000*(hz?W:H);
+    let side=1;if(o._k==="door"&&isFinite(+o.swing_x)&&isFinite(+o.swing_y)){const sp={x:X(o.swing_x),y:Y(o.swing_y)};side=((sp.x-p.x)*g.nx+(sp.y-p.y)*g.ny)>=0?1:-1}
+    openings.push({id:nid(),type:o._k,wall:best.id,pos:bt,_wpx:wpx,w:o._k==="window"?120:88,hinge:o.hinge==="end"?1:0,side})});
+  const rooms=(Array.isArray(js&&js.rooms)?js.rooms:[]).filter(r=>r&&isFinite(+r.x)&&isFinite(+r.y)).map(r=>({id:nid(),type:"room",name:String(r.name||"Raum").slice(0,40),
+    area:typeof r.area==="number"&&r.area>0?Math.round(r.area*100)/100:null,x:X(r.x),y:Y(r.y)}));
+  const xs=walls.flatMap(o=>[o.x1,o.x2]),bboxW=xs.length?Math.max(...xs)-Math.min(...xs):0,widthM=+(js&&js.width_m)>0?+js.width_m:null;
+  return{walls,openings,rooms,widthM,bboxW}}
+function commitVector(src,bg,res){
+  S.plan={w:src.w,h:src.h,mask:new Uint8Array(src.w*src.h)};S.gray=src.gray;S.bgCanvas=bg;S.mode="vector";
+  S.vec={walls:res.walls,openings:res.openings};S.items=res.rooms;S.isExample=false;undoStack.length=0;sel=null;S.showBg=!res.walls.length;
+  S.pxPerM=res.widthM&&res.bboxW>0?res.bboxW/res.widthM:null;
+  vecRaster();computeRegions();
+  if(!S.pxPerM){const est=S.items.filter(r=>r.area&&r._reg>=0&&S.regionSize[r._reg]).map(r=>Math.sqrt(S.regionSize[r._reg]/r.area)).sort((a,b)=>a-b);if(est.length)S.pxPerM=est[Math.floor(est.length/2)]}
+  const dim=Math.max(src.w,src.h);if(S.pxPerM&&(S.pxPerM<dim/80||S.pxPerM>dim/3))S.pxPerM=null;
+  const P=ppm();S.vec.openings.forEach(o=>{const lim=o.type==="window"?[50,400]:[60,250];if(o._wpx>0)o.w=clamp(Math.round(o._wpx/P*100/5)*5,lim[0],lim[1]);delete o._wpx});
+  S.vec.walls.forEach(clampOpenings);vecRaster();afterPlanChange()}
 /* ================= Regions / floor fill ================= */
 function dilate(m,w,h,r){const a=new Uint8Array(w*h),b=new Uint8Array(w*h);
   for(let y=0;y<h;y++){let cnt=0;const o=y*w;for(let x=0;x<Math.min(r,w);x++)cnt+=m[o+x];
@@ -553,8 +714,8 @@ function dilate(m,w,h,r){const a=new Uint8Array(w*h),b=new Uint8Array(w*h);
   return b}
 function computeRegions(){
   S.regions=null;S.regionKind=[];S.regionSize=[];if(!S.plan)return;
-  const{w,h,mask}=S.plan,rooms=S.items.filter(i=>i.type==="room");rooms.forEach(r=>r._reg=-1);if(!rooms.length)return;
-  const r=Math.max(2,Math.round(Math.max(w,h)/320)),dm=dilate(mask,w,h,r),reg=new Int16Array(w*h).fill(-1),q=new Int32Array(w*h);
+  const{w,h,mask}=S.plan,vec=S.mode==="vector"&&S.plan.fillMask,rooms=S.items.filter(i=>i.type==="room");rooms.forEach(r=>r._reg=-1);if(!rooms.length)return;
+  const r=vec?1:Math.max(2,Math.round(Math.max(w,h)/320)),dm=vec?S.plan.fillMask:dilate(mask,w,h,r),reg=new Int16Array(w*h).fill(-1),q=new Int32Array(w*h);
   let nreg=0;
   rooms.forEach(rm=>{
     let sx=Math.round(rm.x),sy=Math.round(rm.y),seed=-1;
@@ -572,7 +733,7 @@ function computeRegions(){
   });
   if(!nreg)return;
   // grow into the dilation band (not into walls)
-  let cur=reg;for(let it=0;it<r+1;it++){const nx=cur.slice();let ch=0;
+  const iters=vec?Math.ceil(maxWallT()/2)+3:r+1;let cur=reg;for(let it=0;it<iters;it++){const nx=cur.slice();let ch=0;
     for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const p=y*w+x;if(cur[p]>=0||mask[p])continue;
       const v=cur[p-1]>=0?cur[p-1]:cur[p+1]>=0?cur[p+1]:cur[p-w]>=0?cur[p-w]:cur[p+w];if(v>=0){nx[p]=v;ch++}}
     cur=nx;if(!ch)break}
@@ -584,11 +745,11 @@ function renderPlan(){
   const x=c.getContext("2d"),im=x.createImageData(w,h),px=im.data;
   const wall=hex(d.wall),paper=hex(d.paper),cols={floor:d.floor&&hex(d.floor),wet:d.wet&&hex(d.wet),out:d.out&&hex(d.out),plain:d.plain&&hex(d.plain)};
   const reg=S.fill?S.regions:null,K=S.regionKind,P=ppm(),plank=Math.max(4,P*0.19),plankL=plank*7,tile=Math.max(4,P*0.3);
-  const tex={floor:d.floorTex,wet:"tiles",out:"vplanks",plain:null},wm=S.wallBoost>0?dilate(mask,w,h,S.wallBoost):mask;
+  const tex={floor:d.floorTex,wet:"tiles",out:"vplanks",plain:null},wm=S.mode==="vector"?null:S.wallBoost>0?dilate(mask,w,h,S.wallBoost):mask;
   const colTone=new Float32Array(w);for(let xx=0;xx<w;xx++){const ci=Math.floor(xx/plank);colTone[xx]=((ci*2654435761>>>0)%7-3)*2.4}
   for(let y=0;y<h;y++){const pi=Math.floor(y/plank),onPl=(y%plank)<1,tone=((pi*2654435761>>>0)%7-3)*0.9,off=((pi*5)%7)*plank;
     for(let xx=0;xx<w;xx++){const i=y*w+xx,o=i*4;let col=paper,dv=0;
-      if(wm[i])col=wall;
+      if(wm&&wm[i])col=wall;
       else if(reg&&reg[i]>=0){const k=K[reg[i]],cc=cols[k];if(cc){col=cc;const t=tex[k];
         if(t==="hplanks"){dv=tone;if(onPl||((xx+off)%plankL)<1)dv-=16}
         else if(t==="vplanks"){const ci=Math.floor(xx/plank);dv=colTone[xx];if(xx%plank<1.3)dv-=24;else if(((y+((ci*5)%7)*plank)%plankL)<1)dv-=12}
@@ -636,6 +797,9 @@ function drawFurn(x,kind,w,d,P,col){
     case"becken":{R(L,T,w,d,cm(6),p.white,true,true);E(0,cm(3),w*0.36,d*0.3,p.whiteIn);C(0,T+cm(6),cm(2.5),p.metal);break}
     case"waschm":{R(L,T,w,d,cm(3),p.white,true,true);C(0,cm(3),Math.min(w,d)*0.33,p.metal);C(0,cm(3),Math.min(w,d)*0.22,"#dfe3e6");break}
     case"pflanze":{const r=Math.min(w,d)/2;C(0,0,r*0.5,"#9a7b5a",false,true);for(let i=0;i<9;i++){const a=i/9*6.283;x.beginPath();x.ellipse(Math.cos(a)*r*0.52,Math.sin(a)*r*0.52,r*0.5,r*0.2,a,0,7);x.fillStyle=i%2?p.plant:p.plant2;x.fill()}C(0,0,r*0.16,p.plant2,false);break}
+    case"treppe":{x.save();x.strokeStyle=p.dark;x.lineWidth=Math.max(1,P*0.012);x.fillStyle=col.shadow?"rgba(255,255,255,.35)":"#ffffff";x.fillRect(L,T,w,d);x.strokeRect(L,T,w,d);
+      x.globalAlpha=.45;for(let y=T+cm(26);y<T+d-1;y+=cm(26)){x.beginPath();x.moveTo(L,y);x.lineTo(L+w,y);x.stroke()}x.globalAlpha=1;
+      x.beginPath();x.moveTo(0,T+d-cm(12));x.lineTo(0,T+cm(16));x.stroke();x.beginPath();x.moveTo(0,T+cm(5));x.lineTo(-cm(11),T+cm(22));x.lineTo(cm(11),T+cm(22));x.closePath();x.fillStyle=p.dark;x.fill();x.restore();break}
     case"teppich":{R(L,T,w,d,cm(3),p.rug,false);x.save();x.strokeStyle=p.rugLine;rr(x,L+cm(8),T+cm(8),w-cm(16),d-cm(16),cm(2));x.stroke();x.restore();break}
   }
 }
@@ -682,10 +846,12 @@ function draw(){
   ex.setTransform(dpr,0,0,dpr,0,0);ex.clearRect(0,0,cw,ch);
   ex.save();ex.translate(V.ox,V.oy);ex.scale(V.z,V.z);
   ex.shadowColor="rgba(0,0,0,.18)";ex.shadowBlur=18;ex.fillStyle=d.paper;ex.fillRect(0,0,S.plan.w,S.plan.h);ex.shadowBlur=0;ex.shadowColor="transparent";
-  ex.imageSmoothingEnabled=V.z<1.5;ex.drawImage(S.planCanvas,0,0);drawItems(ex,d);
+  ex.imageSmoothingEnabled=V.z<1.5;ex.drawImage(S.planCanvas,0,0);
+  if(S.mode==="vector"&&S.showBg&&S.bgCanvas){ex.save();ex.globalAlpha=.35;ex.globalCompositeOperation="multiply";ex.imageSmoothingEnabled=true;ex.drawImage(S.bgCanvas,0,0,S.plan.w,S.plan.h);ex.restore()}
+  drawVector(ex,d);drawItems(ex,d);drawVecSel(ex);
   if(sel&&sel._bb){const b=sel._bb;ex.strokeStyle="#2f7fe0";ex.lineWidth=2/V.z;ex.setLineDash([6/V.z,4/V.z]);ex.strokeRect(b.x,b.y,b.w,b.h);ex.setLineDash([])}
   const ln=(act&&(act.t==="wall"||act.t==="scale"))?act:(scaleLine&&tool==="scale"?{a:scaleLine.a,b:scaleLine.b,t:"scale"}:null);
-  if(ln){ex.strokeStyle=ln.t==="wall"?d.wall:"#e0662f";ex.lineCap="butt";ex.lineWidth=ln.t==="wall"?S.wallCm/100*ppm():3/V.z;if(ln.t==="scale")ex.setLineDash([8/V.z,5/V.z]);
+  if(ln){ex.strokeStyle=ln.t==="wall"?d.wall:"#e0662f";ex.lineCap="butt";ex.lineWidth=ln.t==="wall"?(S.mode==="vector"?S.intCm:S.wallCm)/100*ppm():3/V.z;if(ln.t==="scale")ex.setLineDash([8/V.z,5/V.z]);
     ex.beginPath();ex.moveTo(ln.a.x,ln.a.y);ex.lineTo(ln.b.x,ln.b.y);ex.stroke();ex.setLineDash([]);
     if(ln.t==="scale"){[ln.a,ln.b].forEach(p=>{ex.beginPath();ex.arc(p.x,p.y,5/V.z,0,7);ex.fillStyle="#e0662f";ex.fill()})}}
   ex.restore();
@@ -693,6 +859,7 @@ function draw(){
     ex.beginPath();ex.moveTo(h.c.x,h.c.y);ex.lineTo(h.rot.x,h.rot.y);ex.stroke();
     [h.rot,h.size].forEach((p,i)=>{ex.beginPath();i?ex.rect(p.x-9,p.y-9,18,18):ex.arc(p.x,p.y,10,0,7);ex.fill();ex.stroke()});
     ex.fillStyle="#2f7fe0";ex.font="700 12px Inter, sans-serif";ex.textAlign="center";ex.textBaseline="middle";ex.fillText("↻",h.rot.x,h.rot.y+0.5)}
+  if(sel&&sel.type==="wall"&&S.mode==="vector"){const hs=wallHandles(sel);[hs[1],hs[2]].forEach(q=>{ex.beginPath();ex.arc(q.x,q.y,9,0,7);ex.fillStyle="#fff";ex.fill();ex.strokeStyle="#2f7fe0";ex.lineWidth=2;ex.stroke()})}
   if(tool==="erase"&&hover){ex.beginPath();ex.arc(hover.x,hover.y,S.brush,0,7);ex.strokeStyle="#e0662f";ex.lineWidth=1.5;ex.stroke()}
   if(S.north)drawNorth(ex,cw-52,56,78,S.northRot,d.compass);
 }
@@ -701,8 +868,8 @@ function handles(){const P=ppm(),it=sel,a=it.rot*Math.PI/180,w=it.w/100*P,h=it.d
   const loc=(lx,ly)=>({x:it.x+lx*Math.cos(a)-ly*Math.sin(a),y:it.y+lx*Math.sin(a)+ly*Math.cos(a)});
   const c=sc({x:it.x,y:it.y}),top=sc(loc(0,-h/2)),dirx=Math.sin(a),diry=-Math.cos(a);
   return{c:top,rot:{x:top.x+dirx*30,y:top.y+diry*30},size:sc(loc(w/2,h/2)),center:c}}
-function pushUndo(withMask){undoStack.push({items:JSON.stringify(S.items),mask:withMask?S.plan.mask.slice():null,ppm:S.pxPerM});if(undoStack.length>15)undoStack.shift()}
-$("#undo").onclick=()=>{const u=undoStack.pop();if(!u){toast("Nichts zum Rückgängigmachen");return}S.items=JSON.parse(u.items);if(u.mask)S.plan.mask=u.mask;S.pxPerM=u.ppm;
+function pushUndo(withMask){undoStack.push({items:JSON.stringify(S.items),mask:withMask?S.plan.mask.slice():null,ppm:S.pxPerM,vec:S.vec?JSON.stringify(S.vec):null});if(undoStack.length>15)undoStack.shift()}
+$("#undo").onclick=()=>{const u=undoStack.pop();if(!u){toast("Nichts zum Rückgängigmachen");return}S.items=JSON.parse(u.items);if(u.mask)S.plan.mask=u.mask;S.pxPerM=u.ppm;if(u.vec){S.vec=JSON.parse(u.vec);vecRaster()}
   sel=sel&&S.items.find(i=>i.id===sel.id)||null;afterPlanChange();draw();renderSel();syncEditorUI()};
 function eraseAt(p){const r=S.brush/V.z,{w,h,mask}=S.plan,x0=Math.max(0,Math.floor(p.x-r)),x1=Math.min(w-1,Math.ceil(p.x+r)),y0=Math.max(0,Math.floor(p.y-r)),y1=Math.min(h-1,Math.ceil(p.y+r));
   const c=S.planCanvas.getContext("2d"),col=D().paper;c.fillStyle=col;
@@ -719,10 +886,13 @@ ed.addEventListener("pointerdown",e=>{
   if(tool==="move"){
     if(sel&&sel.type==="furn"){const h=handles();if(Math.hypot(c.x-h.rot.x,c.y-h.rot.y)<22){pushUndo();act={t:"rot"};return}
       if(Math.hypot(c.x-h.size.x,c.y-h.size.y)<22){pushUndo();act={t:"size",w0:sel.w,d0:sel.d};return}}
+    if(sel&&sel.type==="wall"&&S.mode==="vector"){const hs=wallHandles(sel);for(const k of[1,2]){if(Math.hypot(c.x-hs[k].x,c.y-hs[k].y)<22){pushUndo();act={t:"wend",end:k};return}}}
     const it=hitItem(p);if(it){sel=it;act={t:"drag",dx:p.x-it.x,dy:p.y-it.y,moved:false};renderSel();draw();return}
+    const v=hitVec(p);if(v){sel=v;act=v.type==="wall"?{t:"wmove",sx:p.x,sy:p.y,o:{x1:v.x1,y1:v.y1,x2:v.x2,y2:v.y2},att:attachedEnds(v),moved:false}:{t:"omove",moved:false};renderSel();draw();return}
     if(sel){sel=null;renderSel()}act={t:"pan",sx:c.x,sy:c.y,ox:V.ox,oy:V.oy};draw();return}
   if(tool==="erase"){pushUndo(true);act={t:"erase",undoPushed:true};eraseAt(p);draw();return}
-  if(tool==="wall"||tool==="scale"){act={t:tool,a:p,b:p};draw()}
+  if(tool==="door"||tool==="window"){const wl=hitWall(p);if(!wl){toast("Bitte direkt auf eine Wand tippen");return}pushUndo();addOpening(wl,tool,p);return}
+  if(tool==="wall"||tool==="scale"){const a=tool==="wall"&&S.mode==="vector"?snapPt(p,null):p;act={t:tool,a,b:a};draw()}
 });
 ed.addEventListener("pointermove",e=>{const c=cpos(e);hover=c;
   if(ptrs.has(e.pointerId))ptrs.set(e.pointerId,c);
@@ -734,6 +904,10 @@ ed.addEventListener("pointermove",e=>{const c=cpos(e);hover=c;
   else if(act.t==="rot"){let a=Math.atan2(p.x-sel.x,-(p.y-sel.y))*180/Math.PI;a=(a+360)%360;const s=Math.round(a/15)*15;sel.rot=Math.abs(a-s)<6?s%360:Math.round(a);renderSel(true)}
   else if(act.t==="size"){const P=ppm(),r=-sel.rot*Math.PI/180,dx=p.x-sel.x,dy=p.y-sel.y,lx=dx*Math.cos(r)-dy*Math.sin(r),ly=dx*Math.sin(r)+dy*Math.cos(r);
     sel.w=clamp(Math.round(Math.abs(lx)*2/P*100/5)*5,20,800);sel.d=clamp(Math.round(Math.abs(ly)*2/P*100/5)*5,20,800);renderSel(true)}
+  else if(act.t==="wmove"){if(!act.moved){pushUndo();act.moved=true}const g=wGeom(act.o),dd=(p.x-act.sx)*g.nx+(p.y-act.sy)*g.ny,dx=g.nx*dd,dy=g.ny*dd;
+    Object.assign(sel,{x1:act.o.x1+dx,y1:act.o.y1+dy,x2:act.o.x2+dx,y2:act.o.y2+dy});act.att.forEach(a=>{a.wl["x"+a.end]=a.x+dx;a.wl["y"+a.end]=a.y+dy})}
+  else if(act.t==="wend"){const other=act.end===1?{x:sel.x2,y:sel.y2}:{x:sel.x1,y:sel.y1};const q=snapPt(snap(other,p),sel);sel["x"+act.end]=q.x;sel["y"+act.end]=q.y}
+  else if(act.t==="omove"){if(!act.moved){pushUndo();act.moved=true}const wl=S.vec.walls.find(w=>w.id===sel.wall);if(wl){const g=wGeom(wl),wpx=sel.w/100*ppm();sel.pos=clamp((p.x-wl.x1)*g.ux+(p.y-wl.y1)*g.uy,wpx/2,Math.max(wpx/2,g.L-wpx/2))}}
   else if(act.t==="erase")eraseAt(p);
   else if(act.t==="wall"||act.t==="scale")act.b=snap(act.a,p);
   draw()});
@@ -742,7 +916,9 @@ function endPtr(e){ptrs.delete(e.pointerId);if(pinch){if(ptrs.size<2)pinch=null;
   if(a.t==="drag"&&a.moved){dirty();if(sel.type==="room")afterPlanChange()}
   else if(a.t==="rot"||a.t==="size")dirty();
   else if(a.t==="erase")afterPlanChange();
-  else if(a.t==="wall"){if(Math.hypot(a.b.x-a.a.x,a.b.y-a.a.y)>4){pushUndo(true);stampLine(a.a,a.b,Math.max(2,S.wallCm/100*ppm()));afterPlanChange()}}
+  else if((a.t==="wmove"||a.t==="omove")&&a.moved||a.t==="wend"){S.vec.walls.forEach(clampOpenings);vecChanged()}
+  else if(a.t==="wall"){if(Math.hypot(a.b.x-a.a.x,a.b.y-a.a.y)>4){if(S.mode==="vector"){pushUndo();const b2=snapPt(a.b,null),wl={id:nid(),type:"wall",x1:a.a.x,y1:a.a.y,x2:b2.x,y2:b2.y,kind:"int"};S.vec.walls.push(wl);sel=wl;renderSel();vecChanged()}
+    else{pushUndo(true);stampLine(a.a,a.b,Math.max(2,S.wallCm/100*ppm()));afterPlanChange()}}}
   else if(a.t==="scale"){if(Math.hypot(a.b.x-a.a.x,a.b.y-a.a.y)>10){scaleLine={a:a.a,b:a.b};syncToolOpts();setTimeout(()=>{const i=$("#f-scale-m");if(i)i.focus()},50)}}
   draw()}
 ed.addEventListener("pointerup",endPtr);ed.addEventListener("pointercancel",endPtr);ed.addEventListener("pointerleave",()=>{hover=null;if(tool==="erase")draw()});
@@ -756,7 +932,9 @@ document.addEventListener("keydown",e=>{if(step!==3||!sel)return;if(/INPUT|TEXTA
 function syncToolOpts(){const o=$("#tool-opts");o.hidden=tool==="move";o.innerHTML="";
   if(tool==="erase"){o.innerHTML=`<h3>Radierer</h3><p class="hint">Über alte Beschriftungen, Maßketten oder Flecken wischen.</p><div class="field"><label for="f-brush">Pinselgröße</label><input type="range" id="f-brush" min="6" max="70" value="${S.brush}"></div>`;
     $("#f-brush").oninput=e=>{S.brush=+e.target.value}}
-  if(tool==="wall"){o.innerHTML=`<h3>Wand zeichnen</h3><p class="hint">Ziehen, um eine fehlende Linie zu ergänzen oder eine Tür zu schließen. Gerade Linien rasten ein.</p><div class="field"><label for="f-wallcm">Wandstärke: <span id="wallv">${S.wallCm}</span> cm</label><input type="range" id="f-wallcm" min="2" max="40" value="${S.wallCm}"></div>`;
+  if(tool==="door"||tool==="window"){o.innerHTML=`<h3>${tool==="door"?"Tür":"Fenster"} einsetzen</h3><p class="hint">Auf eine Wand tippen. Danach Breite und Richtung im Feld darunter anpassen.</p>`}
+  if(tool==="wall"&&S.mode==="vector"){o.innerHTML=`<h3>Wand zeichnen</h3><p class="hint">Von Wandende zu Wandende ziehen. Enden und gerade Linien rasten ein. Neue Wände sind Innenwände, das kannst du danach ändern.</p>`}
+  else if(tool==="wall"){o.innerHTML=`<h3>Wand zeichnen</h3><p class="hint">Ziehen, um eine fehlende Linie zu ergänzen oder eine Tür zu schließen. Gerade Linien rasten ein.</p><div class="field"><label for="f-wallcm">Wandstärke: <span id="wallv">${S.wallCm}</span> cm</label><input type="range" id="f-wallcm" min="2" max="40" value="${S.wallCm}"></div>`;
     $("#f-wallcm").oninput=e=>{S.wallCm=+e.target.value;$("#wallv").textContent=S.wallCm}}
   if(tool==="scale"){if(!scaleLine){o.innerHTML=`<h3>Maßstab festlegen</h3><p class="hint">Ziehe eine Linie entlang einer Wand, deren Länge du kennst (z. B. eine Maßkette). Dann trägst du die Länge ein. Damit stimmen Möbelgrößen und die Flächenberechnung.</p>`}
     else{const L=Math.hypot(scaleLine.b.x-scaleLine.a.x,scaleLine.b.y-scaleLine.a.y);
@@ -766,6 +944,7 @@ function syncToolOpts(){const o=$("#tool-opts");o.hidden=tool==="move";o.innerHT
 }
 function renderSel(light){const p=$("#sel-panel");if(!sel){p.hidden=true;p.innerHTML="";return}p.hidden=false;
   if(light&&sel.type==="furn"&&$("#f-fw")){$("#f-fw").value=sel.w;$("#f-fd").value=sel.d;$("#f-frot").value=sel.rot;return}
+  if(["wall","door","window","pass"].includes(sel.type)){renderVecSel(p);return}
   if(sel.type==="room"){
     p.innerHTML=`<h3>Raum</h3><div class="field"><label for="f-rname">Bezeichnung</label><input type="text" id="f-rname" list="roomlist"></div>
       <div class="field"><label for="f-rarea">Fläche in m²</label><div class="row" style="flex-wrap:nowrap"><input type="text" inputmode="decimal" id="f-rarea" placeholder="optional, z. B. 18,40"><button class="btn" id="calc-area" title="Aus Maßstab berechnen">≈ berechnen</button></div><small id="area-hint"></small></div>
@@ -791,7 +970,10 @@ function renderSel(light){const p=$("#sel-panel");if(!sel){p.hidden=true;p.inner
     $("#dup").onclick=()=>{pushUndo();const c=Object.assign({},sel,{id:nid(),x:sel.x+ppm()*0.4,y:sel.y+ppm()*0.4});S.items.push(c);sel=c;renderSel();dirty();draw()};
   }
   $("#del").onclick=delSel}
-function delSel(){if(!sel)return;pushUndo();const wasRoom=sel.type==="room";S.items=S.items.filter(i=>i!==sel);sel=null;renderSel();if(wasRoom)afterPlanChange();else dirty();draw()}
+function delSel(){if(!sel)return;pushUndo();
+  if(sel.type==="wall"){const id=sel.id;S.vec.walls=S.vec.walls.filter(w=>w!==sel);S.vec.openings=S.vec.openings.filter(o=>o.wall!==id);sel=null;renderSel();vecChanged();return}
+  if(["door","window","pass"].includes(sel.type)){S.vec.openings=S.vec.openings.filter(o=>o!==sel);sel=null;renderSel();vecChanged();return}
+  const wasRoom=sel.type==="room";S.items=S.items.filter(i=>i!==sel);sel=null;renderSel();if(wasRoom)afterPlanChange();else dirty();draw()}
 function viewCenter(){const p=toPlan(ed.width/dpr/2,ed.height/dpr/2);return{x:clamp(p.x,0,S.plan.w),y:clamp(p.y,0,S.plan.h)}}
 function addRoom(name){pushUndo();const c=viewCenter(),it={id:nid(),type:"room",name,area:null,x:c.x,y:c.y};S.items.push(it);sel=it;$('[data-tool="move"]').click();afterPlanChange();renderSel();draw()}
 function addFurn(k){pushUndo();const c=viewCenter(),f=FURN[k],it={id:nid(),type:"furn",kind:k,w:f[1],d:f[2],rot:0,x:c.x,y:c.y};if(k==="teppich")S.items.unshift(it);else S.items.push(it);sel=it;$('[data-tool="move"]').click();dirty();renderSel();draw()}
@@ -805,6 +987,8 @@ function initEditorUI(){
   $("#f-fs").oninput=e=>{S.labelScale=+e.target.value/100;dirty();draw()};
   $("#f-north").onchange=e=>{S.north=e.target.checked;$("#north-rot-f").hidden=!S.north;dirty();draw()};
   $("#f-north-rot").oninput=e=>{S.northRot=+e.target.value;dirty();draw()};
+  $("#f-bg").onchange=e=>{S.showBg=e.target.checked;draw()};
+  let vT;const wallSl=(id,key,lab)=>{$(id).oninput=e=>{S[key]=+e.target.value;$(lab).textContent=S[key];dirty();draw();clearTimeout(vT);vT=setTimeout(vecChanged,150)}};wallSl("#f-ext","extCm","#extv");wallSl("#f-int","intCm","#intv");
   let wbT;$("#f-wb").oninput=e=>{S.wallBoost=+e.target.value;clearTimeout(wbT);wbT=setTimeout(()=>{renderPlan();dirty();draw()},80)};
 }
 function paintFurnIcons(){const d=D();$$("#furn-grid canvas").forEach(c=>{const x=c.getContext("2d"),k=c.dataset.k,f=FURN[k];x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,c.width,c.height);
@@ -814,10 +998,14 @@ function syncEditorUI(){
   $("#scale-status").textContent=S.pxPerM?(S.isExample?"Maßstab: aus dem Beispiel bekannt.":"Maßstab festgelegt. Möbel sind in echter Größe."):"Maßstab nicht festgelegt: Möbelgrößen sind geschätzt. Werkzeug „Maßstab“ nutzen für echte Größen.";
   $("#f-fill").checked=S.fill;$("#f-north").checked=S.north;$("#north-rot-f").hidden=!S.north;
   $$('input[name=design2]').forEach(i=>i.checked=i.value===S.meta.design);
+  $$("[data-mode]").forEach(b=>b.hidden=b.dataset.mode!==S.mode);$("#vec-opts").hidden=S.mode!=="vector";$("#wb-field").hidden=S.mode==="vector";
+  $("#f-ext").value=S.extCm;$("#f-int").value=S.intCm;$("#extv").textContent=S.extCm;$("#intv").textContent=S.intCm;$("#f-bg").checked=S.showBg;$("#f-bg").parentElement.hidden=!S.bgCanvas;
+  $("#ai-box").hidden=!($("#ai-box").dataset.ok&&S.mode!=="vector");
+  if((tool==="erase"&&S.mode==="vector")||((tool==="door"||tool==="window")&&S.mode!=="vector")){const mb=$('[data-tool="move"]');if(mb)mb.click()}
 }
 
 /* ================= AI room detection ================= */
-sampleP.then(async s=>{if(!s)return;let lim=null;try{lim=await s.limits()}catch(e){}if(!lim||!lim.images)return;$("#ai-box").hidden=false;
+sampleP.then(async s=>{if(!s)return;let lim=null;try{lim=await s.limits()}catch(e){}if(!lim||!lim.images)return;$("#ai-box").dataset.ok="1";syncEditorUI();
   $("#ai-btn").onclick=async()=>{const st=$("#ai-status"),btn=$("#ai-btn");if(!S.gray)return;btn.disabled=true;st.className="status";st.textContent="Claude sieht sich den Grundriss an … (ca. 20–60 Sekunden)";
     try{const{w,h}=S.plan,k=Math.min(1,1568/Math.max(w,h)),c=document.createElement("canvas");c.width=Math.round(w*k);c.height=Math.round(h*k);
       const t=document.createElement("canvas");t.width=w;t.height=h;const tx=t.getContext("2d"),im=tx.createImageData(w,h);for(let i=0;i<w*h;i++){const v=S.gray[i];im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}
@@ -833,12 +1021,13 @@ Antworte NUR mit einem JSON-Array, ohne weiteren Text. Format:
       res.forEach(r=>{if(!r||typeof r.x!=="number"||typeof r.y!=="number")return;S.items.push({id:nid(),type:"room",name:String(r.name||"Raum").slice(0,40),area:typeof r.area==="number"&&r.area>0?Math.round(r.area*100)/100:null,x:clamp(r.x,0,1)*w,y:clamp(r.y,0,1)*h})});
       sel=null;renderSel();afterPlanChange();draw();st.textContent=res.length+" Räume erkannt. Bitte Namen, Flächen und Position prüfen.";
     }catch(e){st.className="status err";st.textContent=e&&e.code==="not_granted"?"Zugriff auf Claude wurde nicht erlaubt. Räume bitte von Hand setzen.":e&&e.code==="rate_limited"?"Gerade zu viele Anfragen. Bitte in einer Minute erneut versuchen.":"Räume konnten nicht erkannt werden. Bitte von Hand setzen.";
-      if(e&&e.code==="not_granted")$("#ai-box").hidden=true}
+      if(e&&e.code==="not_granted"){delete $("#ai-box").dataset.ok;$("#ai-box").hidden=true}}
     finally{btn.disabled=false}}});
 
 /* ================= Export ================= */
 function contentBBox(){const{w,h,mask}=S.plan;let x0=w,y0=h,x1=0,y1=0;
-  for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2)if(mask[y*w+x]){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+  if(S.mode==="vector"&&S.vec&&S.vec.walls.length)S.vec.walls.forEach(wl=>{const t=wallT(wl);x0=Math.min(x0,wl.x1-t,wl.x2-t);x1=Math.max(x1,wl.x1+t,wl.x2+t);y0=Math.min(y0,wl.y1-t,wl.y2-t);y1=Math.max(y1,wl.y1+t,wl.y2+t)});
+  else for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2)if(mask[y*w+x]){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
   const t=document.createElement("canvas").getContext("2d");S.items.forEach(it=>{if(it.type==="room")it._bb=roomLayout(t,it).bb;const b=it._bb;if(!b)return;x0=Math.min(x0,b.x);y0=Math.min(y0,b.y);x1=Math.max(x1,b.x+b.w);y1=Math.max(y1,b.y+b.h)});
   if(x1<=x0||y1<=y0)return{x:0,y:0,w,h};const m=Math.max(w,h)*0.015;x0=Math.max(0,x0-m);y0=Math.max(0,y0-m);x1=Math.min(w,x1+m);y1=Math.min(h,y1+m);return{x:x0,y:y0,w:x1-x0,h:y1-y0}}
 async function renderPage(){
@@ -857,7 +1046,7 @@ async function renderPage(){
   x.save();x.beginPath();x.rect(M,M+HD-20,aw,ah+40);x.clip();x.translate(px-bb.x*s,py-bb.y*s);x.scale(s,s);
   x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";
   // draw only the plan's content box; paper elsewhere is the same as page in all designs
-  x.drawImage(S.planCanvas,0,0);drawItems(x,d);x.restore();
+  x.drawImage(S.planCanvas,0,0);drawVector(x,d);drawItems(x,d);x.restore();
   if(S.north)drawNorth(x,W-M-120,M+HD+130,220,S.northRot,d.compass);
   // footer
   const fy=H-M-FT+70;x.fillStyle=d.line||d.muted;x.globalAlpha=0.35;x.fillRect(M,fy,W-2*M,2);x.globalAlpha=1;
